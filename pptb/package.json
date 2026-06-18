@@ -1,0 +1,30 @@
+{
+  "name": "functional-location-dedup",
+  "version": "1.0.0",
+  "displayName": "Functional Location De-duplicator",
+  "description": "Merge duplicate Functional Locations onto a master record.",
+  "main": "index.html",
+  "icon": "Functional Location De-duplicator.svg",
+  "files": ["dist", "npm-shrinkwrap.json"],
+  "license": "MIT",
+  "author": "Mark Christie (https://github.com/TheMarkChristie)",
+  "contributors": [{ "name": "Mark Christie", "url": "https://github.com/TheMarkChristie" }],
+  "keywords": ["dataverse", "dynamics-365", "power-platform", "field-service", "functional-location", "duplicates", "merge", "data-quality"],
+  "homepage": "https://github.com/TheMarkChristie/functional-location-dedup#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheMarkChristie/functional-location-dedup.git"
+  },
+  "configurations": {
+    "repository": "https://github.com/TheMarkChristie/functional-location-dedup",
+    "website": "https://github.com/TheMarkChristie/functional-location-dedup#readme",
+    "readmeUrl": "https://raw.githubusercontent.com/TheMarkChristie/functional-location-dedup/main/README.md"
+  },
+  "features": {
+    "multiConnection": "optional",
+    "minAPI": "1.2.2"
+  },
+  "scripts": {
+    "build": "node build.js"
+  }
+}

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    XrmToolBox plugin: Functional Location De-duplicator.
+    Thin WebView2 host around the shared prx3_FunctionalLocationMerge.html.
+    Targets .NET Framework 4.8 (required by XrmToolBox).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>FunctionalLocationMerge</AssemblyName>
+    <RootNamespace>FunctionalLocationMerge</RootNamespace>
+    <!-- XrmToolBox discovers plugins by the *.dll naming convention below -->
+    <Product>Functional Location De-duplicator</Product>
+    <Company>Mark Christie</Company>
+    <Authors>Mark Christie</Authors>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- XrmToolBox plugin SDK + Dataverse client -->
+    <PackageReference Include="XrmToolBoxPackage" Version="1.2025.7.71" />
+    <PackageReference Include="Microsoft.PowerPlatform.Dataverse.Client" Version="1.1.32" />
+    <!-- Embedded Chromium for hosting the HTML app (match XrmToolBoxPackage's WebView2) -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3351.48" />
+  </ItemGroup>
+
+  <!-- regenerate the Win95-skinned app/index.html from the canonical logic before each build -->
+  <Target Name="SkinWin95" BeforeTargets="BeforeBuild">
+    <Exec Command="node &quot;$(MSBuildProjectDirectory)\..\skin-win95.js&quot;" ContinueOnError="true" />
+  </Target>
+
+  <ItemGroup>
+    <!-- ship the generated Win95 HTML next to the dll so WebView2 can load it -->
+    <None Include="app\index.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

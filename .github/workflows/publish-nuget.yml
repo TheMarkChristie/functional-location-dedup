@@ -1,0 +1,53 @@
+name: Publish XrmToolBox plugin to NuGet
+
+# Builds the Functional Location De-duplicator XrmToolBox plugin and publishes the NuGet
+# package to nuget.org using Trusted Publishing (OIDC — no stored API key).
+#
+# Trusted Publishing policy on nuget.org must match:
+#   Package Owner   : TheMarkChristie
+#   Repository Owner: TheMarkChristie
+#   Repository      : functional-location-dedup
+#   Workflow File   : publish-nuget.yml
+#   Environment     : (blank)
+
+on:
+  workflow_dispatch:        # run manually from the Actions tab
+  release:
+    types: [published]      # ...or automatically when you publish a GitHub Release
+
+permissions:
+  contents: read
+  id-token: write           # REQUIRED for NuGet trusted publishing (OIDC)
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Build (Release) and pack
+        working-directory: xrmtoolbox/FunctionalLocationMerge
+        run: |
+          dotnet build -c Release
+          nuget pack FunctionalLocationMerge.nuspec -OutputDirectory "${{ github.workspace }}\dist-nuget"
+
+      - name: NuGet trusted-publish login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: TheMarkChristie
+
+      - name: Push to nuget.org
+        run: >
+          nuget push "${{ github.workspace }}\dist-nuget\*.nupkg"
+          -ApiKey ${{ steps.login.outputs.NUGET_API_KEY }}
+          -Source https://api.nuget.org/v3/index.json
+          -SkipDuplicate

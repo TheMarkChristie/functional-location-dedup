@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Functional Location De-duplicator</title>
+<!--
+  Functional Location De-duplicator — single self-contained file. No React, no modules,
+  no external requests. Runs as a D365 web resource (same-origin) or standalone (paste
+  org URL + bearer token), or hosted in XrmToolBox (window.XTB_CONFIG).
+
+  FL has no native Merge in Dataverse -> reallocate every record referencing a duplicate
+  onto the most-referenced survivor, then delete the duplicate. Match REQUIRES Street 1 AND
+  Postcode (and optional extra field) to all be non-blank. Scan + dry-run are read-only;
+  writes happen only after the confirm dialog.
+-->
+<style>
+  :root{
+    --bg:#faf9f8;--card:#fff;--line:#e1dfdd;--line2:#edebe9;--ink:#242424;--ink2:#605e5c;
+    --brand:#0f6cbd;--brand-d:#115ea3;--warn:#9a5b00;--warn-bg:#fff4ce;--danger:#a4262c;
+    --danger-bg:#fde7e9;--ok:#0e700e;--ok-bg:#dff6dd;--info-bg:#eff6fc;
+    --shadow:0 1.6px 3.6px rgba(0,0,0,.10),0 .3px .9px rgba(0,0,0,.07);
+  }
+  *{box-sizing:border-box}
+  :focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  .hidden{display:none}
+  .byline{color:var(--ink2);font-size:13px;margin:-2px 0 8px}
+  table.rels td:first-child,table.rels th:first-child{width:44px;text-align:center}
+  table.rels td[title]{cursor:help}
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+  body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  .wrap{max-width:1200px;margin:0 auto;padding:20px}
+  h1{font-size:24px;font-weight:600;margin:0 0 4px}h2{font-size:16px;font-weight:600;margin:0 0 10px}
+  .mono{font-family:Consolas,'Cascadia Mono',monospace;font-size:12px}.muted{color:var(--ink2)}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+  .spaced{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+  .card .desc{color:var(--ink2);margin:2px 0 12px}
+  .field{display:flex;flex-direction:column;gap:4px;min-width:260px}
+  .field>label{font-weight:600;font-size:13px}.field .hint{color:var(--ink2);font-size:12px}
+  input[type=text],textarea,select{font:inherit;padding:6px 8px;border:1px solid #8a8886;border-radius:4px;background:#fff;color:var(--ink)}
+  input[type=text]:focus,textarea:focus,select:focus{outline:2px solid var(--brand);outline-offset:-1px;border-color:var(--brand)}
+  textarea{resize:vertical}
+  button{font:inherit;cursor:pointer;border-radius:4px;padding:6px 16px;border:1px solid #8a8886;background:#fff;color:var(--ink)}
+  button:hover:not(:disabled){background:#f3f2f1}button:disabled{opacity:.5;cursor:not-allowed}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  button.primary:hover:not(:disabled){background:var(--brand-d);border-color:var(--brand-d)}
+  button.subtle{border-color:transparent;background:transparent;color:var(--brand)}
+  button.subtle:hover:not(:disabled){background:#f3f2f1}
+  .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;margin-right:8px;background:#f3f2f1;color:var(--ink2)}
+  .badge.brand{background:var(--info-bg);color:var(--brand)}.badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .badge.danger{background:var(--danger-bg);color:var(--danger)}.badge.ok{background:var(--ok-bg);color:var(--ok)}
+  .badge.sm{font-size:11px;padding:1px 6px;margin-top:4px}
+  .bar{border-radius:4px;padding:10px 12px;margin:10px 0;border:1px solid transparent}
+  .bar.info{background:var(--info-bg);border-color:#c7e0f4}.bar.ok{background:var(--ok-bg);border-color:#bad80a33}
+  .bar.warn{background:var(--warn-bg);border-color:#f7e08b}.bar.error{background:var(--danger-bg);border-color:#f1bbbe}
+  .bar b{display:block}
+  .prog{height:6px;background:var(--line2);border-radius:3px;overflow:hidden;margin-top:4px}
+  .prog>i{display:block;height:100%;background:var(--brand);transition:width .2s;width:0}
+  .prog.indet>i{width:30%;animation:indet 1.1s infinite ease-in-out}
+  @keyframes indet{0%{margin-left:-30%}100%{margin-left:100%}}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+  th{font-weight:600;color:var(--ink2);position:sticky;top:0;background:var(--card)}
+  .scroll{max-height:460px;overflow:auto;border:1px solid var(--line2);border-radius:6px}
+  .num{text-align:right}
+  tr.grp td{background:#eff6fc;font-weight:600;border-top:2px solid #c7e0f4}
+  tr.sv td{background:#f4fbf4}
+  td .star{color:#107c10;font-weight:700}
+  a.link{color:var(--brand);cursor:pointer;font-size:12px;text-decoration:none;display:inline-block;margin-top:2px}
+  a.link:hover{text-decoration:underline}
+  #detailBody td:first-child{font-family:Consolas,monospace;color:var(--ink2);white-space:nowrap}
+  .spinner{width:30px;height:30px;border:3px solid var(--line2);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;flex:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loader{display:flex;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:18px;margin:16px 0}
+  .loader .lmain{font-weight:600}.loader .lsub{color:var(--ink2);font-size:13px}
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal{background:#fff;border-radius:8px;max-width:520px;padding:24px;box-shadow:0 8px 16px rgba(0,0,0,.3)}
+  .modal h3{margin:0 0 12px}.modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+  .hidden{display:none}
+  /* Web resource = normal (light) theme only. PPTB build injects dark; XrmToolBox uses Win95. */
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Functional Location De-duplicator</h1>
+  <div class="byline">by Mark Christie</div>
+  <div id="badges" style="margin:6px 0 14px"></div>
+
+  <!-- connect (standalone) -->
+  <div id="connectCard" class="card hidden" style="max-width:640px">
+    <h2>Connect to Dataverse</h2>
+    <div class="desc">No D365 host or XrmToolBox connection detected — enter an org URL and bearer token.</div>
+    <div class="field" style="margin-bottom:12px"><label for="inUrl">Organization URL</label>
+      <input type="text" id="inUrl" value="https://org1d1cdc26.crm4.dynamics.com/" /></div>
+    <div class="field" style="margin-bottom:12px"><label for="inToken">Bearer token</label>
+      <span class="hint" id="inTokenHint">Hosted modes set this automatically.</span>
+      <textarea id="inToken" rows="3" class="mono" aria-describedby="inTokenHint"></textarea></div>
+    <button type="button" class="primary" id="btnConnect">Connect</button>
+  </div>
+
+  <div id="metaErr" class="bar error hidden" role="alert"></div>
+
+  <!-- match key -->
+  <div id="matchCard" class="card hidden">
+    <h2>1 · Match key — group duplicates by these fields</h2>
+    <div class="row">
+      <div class="field"><label for="selStreet1">Street 1 field</label><select id="selStreet1"></select></div>
+      <div class="field"><label for="selPostcode">Postcode field</label><select id="selPostcode"></select></div>
+      <div class="field"><label for="selExtra">+ Extra field (optional, tighter match)</label>
+        <span class="hint">e.g. Name — high-confidence set</span><select id="selExtra"></select></div>
+      <div class="field" style="min-width:150px"><label for="selSearchField">Search field</label>
+        <span class="hint">optional filter</span>
+        <select id="selSearchField">
+          <option value="msdyn_name">Name</option>
+          <option value="msdyn_address1">Address Line 1</option>
+          <option value="msdyn_postalcode">Post Code</option>
+        </select></div>
+      <div class="field"><label for="inSearch">Search term</label>
+        <span class="hint" id="inSearchHint">limit scan to matches (contains)</span>
+        <input type="text" id="inSearch" placeholder="e.g. D09 RH7V" aria-describedby="inSearchHint" /></div>
+      <div class="field" style="min-width:190px"><label for="selLimit">Duplicate groups to return</label>
+        <span class="hint">largest groups first</span>
+        <select id="selLimit">
+          <option value="10">First 10</option>
+          <option value="100">First 100</option>
+          <option value="1000" selected>First 1000</option>
+          <option value="5000">First 5000</option>
+          <option value="all">All</option>
+        </select></div>
+      <button type="button" class="primary" id="btnScan">Scan for duplicates (read-only)</button>
+    </div>
+    <div class="bar info">Records with a blank value in any match field are skipped. Groups larger than
+      <span id="maxAuto"></span> are left unselected (likely complexes sharing one postcode).</div>
+  </div>
+
+  <!-- relationships to reallocate -->
+  <div id="relsCard" class="card hidden">
+    <h2>1b · Relationships — which linked records to count &amp; reallocate</h2>
+    <div class="desc">Only the ticked relationships are counted, reallocated to the survivor, and verified before delete. Fewer = faster. Defaults: Account, Work Order, Agreement.</div>
+    <fieldset id="relsList" style="border:0;margin:0;padding:0">
+      <legend class="hidden">Relationships to count and reallocate</legend>
+    </fieldset>
+  </div>
+
+  <!-- loader -->
+  <div id="loader" class="loader hidden" role="status" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <div><div class="lmain" id="loaderMain">Gathering information…</div><div class="lsub" id="loaderSub"></div></div>
+  </div>
+
+  <div id="noDupes" class="bar ok hidden" role="status">No duplicate groups found for the selected match key. 🎉</div>
+
+  <!-- results -->
+  <div id="resultsCard" class="card hidden">
+    <h2>2 · Matched records — please review &amp; check master records</h2>
+    <div class="desc" id="summary" role="status" aria-live="polite"></div>
+    <div class="scroll"><table>
+      <caption class="hidden">Duplicate functional locations grouped by match key, one row per record, sorted by Master score</caption>
+      <thead><tr>
+        <th scope="col">Use</th><th scope="col">Survivor</th><th scope="col" class="num">Master %</th><th scope="col">Name</th><th scope="col">Addr 1</th><th scope="col">Addr 2</th><th scope="col">Addr 3</th>
+        <th scope="col">City</th><th scope="col">Country</th><th scope="col">Post Code</th><th scope="col">Created by</th><th scope="col">Created on</th><th scope="col" class="num">Linked</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+  </div>
+
+  <div id="actions" class="spaced hidden">
+    <label for="selAction">Then <select id="selAction">
+      <option value="deactivate" selected>deactivate duplicates</option>
+      <option value="delete">delete duplicates</option>
+    </select></label>
+    <button type="button" class="primary" id="btnExecute">Reallocate &amp; deactivate</button>
+    <button type="button" id="btnRescan">Re-scan</button>
+    <button type="button" class="subtle" id="btnDownload">Download change log</button>
+    <span id="doneBadge"></span>
+  </div>
+
+  <!-- post-merge result -->
+  <div id="mergedCard" class="card hidden">
+    <h2>3 · Master records — merged</h2>
+    <div class="desc">Each master links into D365. <b>Links after (master)</b> should equal <b>Links before (group total)</b> — if it's lower, some references didn't reallocate. <b>Duplicates removed</b> is how many were deactivated/deleted.</div>
+    <div class="scroll"><table>
+      <caption class="hidden">Master records after the merge, with combined links before and the master's links after</caption>
+      <thead><tr><th scope="col">Master (kept)</th><th scope="col">Post Code</th><th scope="col" class="num">Links before (group total)</th><th scope="col" class="num">Links after (master)</th><th scope="col" class="num">Duplicates removed</th></tr></thead>
+      <tbody id="mergedBody"></tbody>
+    </table></div>
+  </div>
+</main>
+
+<!-- all-fields detail modal -->
+<div id="detailModal" class="backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal" style="max-width:780px;width:92%">
+    <h3 id="detailTitle">All fields</h3>
+    <div class="desc">Populated fields shown with their display values — use this to decide which data to copy onto the survivor before merging.</div>
+    <div id="detailBody" class="scroll" style="max-height:55vh"></div>
+    <div class="acts"><button type="button" id="btnDetailClose">Close</button></div>
+  </div>
+</div>
+
+<!-- confirm modal -->
+<div id="modal" class="backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal">
+    <h3 id="confirmTitle">Confirm reallocate &amp; delete</h3>
+    <div id="modalBody"></div>
+    <div class="acts"><button type="button" id="btnCancel">Cancel</button><button type="button" class="primary" id="btnConfirm">Yes — execute</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  var FL_SET='msdyn_functionallocations', FL_ENTITY='msdyn_functionallocation', API_VER='v9.2';
+  var MAX_AUTO_INCLUDE=25;
+  // platform-managed relationships that must NOT be reallocated (cascade-managed)
+  var SYSTEM_DENY=new Set(['asyncoperation','bulkdeletefailure','bulkdeleteoperation','mailboxtrackingfolder',
+    'processsession','syncerror','duplicaterecord','deleteditemreference','principalobjectattributeaccess',
+    'userentityinstancedata']); // 'annotation' (notes) kept -> moved to survivor
+
+  // Dual-mode host: inside Power Platform ToolBox window.dataverseAPI is injected (handles
+  // auth + instance routing). As a D365 web resource / XrmToolBox WebView2 we use fetch.
+  var PPTB=(typeof window!=='undefined')&&!!window.dataverseAPI;
+  function pickOrgUrl(c){if(!c)return '';var cands=[c.url,c.environmentUrl,c.instanceUrl,c.apiUrl,c.resourceUrl,c.environment];
+    for(var i=0;i<cands.length;i++){if(typeof cands[i]==='string'&&/^https:\/\/.+\.dynamics\.com/i.test(cands[i]))return cands[i].replace(/\/+$/,'');}return '';}
+
+  // ---- tiny DOM helpers ----
+  function $(id){return document.getElementById(id);}
+  function show(el,on){el.classList.toggle('hidden',!on);}
+  function norm(v){return (v==null?'':String(v)).trim().toLowerCase().replace(/\s+/g,' ');}
+  function txt(s){return document.createTextNode(s);}
+  function elem(tag,attrs,kids){var e=document.createElement(tag);if(attrs)for(var k in attrs){
+    if(k==='class')e.className=attrs[k];else if(k==='text')e.textContent=attrs[k];
+    else if(k.slice(0,2)==='on')e.addEventListener(k.slice(2),attrs[k]);else e.setAttribute(k,attrs[k]);}
+    if(kids)kids.forEach(function(c){e.appendChild(typeof c==='string'?txt(c):c);});return e;}
+
+  // ---- connection ----
+  function detectXrm(){try{if(window.Xrm&&window.Xrm.Utility)return window.Xrm;}catch(e){}
+    try{if(window.parent&&window.parent.Xrm&&window.parent.Xrm.Utility)return window.parent.Xrm;}catch(e){}return null;}
+  function makeConn(){
+    if(PPTB)return{mode:'Power Platform ToolBox',baseUrl:'',token:null,ready:true,pptb:true};
+    var xrm=detectXrm();
+    if(xrm){var b=xrm.Utility.getGlobalContext().getClientUrl().replace(/\/+$/,'');
+      return{mode:'D365 (same-origin)',baseUrl:b,token:null,ready:true};}
+    if(window.XTB_CONFIG&&window.XTB_CONFIG.baseUrl)
+      return{mode:'XrmToolBox (WebView2)',baseUrl:String(window.XTB_CONFIG.baseUrl).replace(/\/+$/,''),token:window.XTB_CONFIG.token||null,ready:true};
+    // Served from the org origin (e.g. opened directly at /WebResources/...): use the
+    // logged-in user's session cookie via same-origin fetch — no Xrm and no token needed.
+    if(location.protocol.indexOf('http')===0&&/\.dynamics\.com$/i.test(location.hostname))
+      return{mode:'Web resource (same-origin, logged-in user)',baseUrl:location.origin,token:null,ready:true};
+    return{mode:'Not connected',baseUrl:'',token:null,ready:false};
+  }
+  function makeApi(conn){
+    var root=conn.baseUrl+'/api/data/'+API_VER+'/', creds=conn.token?'omit':'include';
+    function headers(extra){var h={'OData-MaxVersion':'4.0','OData-Version':'4.0',Accept:'application/json','Content-Type':'application/json; charset=utf-8','Prefer':'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'};
+      if(extra)for(var k in extra)h[k]=extra[k];if(conn.token)h.Authorization='Bearer '+conn.token;return h;}
+    async function freq(method,path,body){
+      var url=path.indexOf('http')===0?path:root+path;
+      var opts={method:method,headers:headers(),credentials:creds};
+      if(body!==undefined)opts.body=JSON.stringify(body);
+      var res=await fetch(url,opts);
+      if(!res.ok){var d='';try{d=(await res.json()).error.message;}catch(e){try{d=await res.text();}catch(e2){}}
+        throw new Error(method+' '+path.split('?')[0]+' → '+res.status+' '+res.statusText+(d?': '+d:''));}
+      if(res.status===204)return null;var t=await res.text();return t?JSON.parse(t):null;}
+    // strip absolute / api-data prefix so PPTB.queryData gets a relative path
+    function rel(p){return p.replace(/^.*\/api\/data\/v9\.\d+\//,'').replace(/^\//,'');}
+    async function get(path){ if(PPTB)return await window.dataverseAPI.queryData(rel(path)); return await freq('GET',path); }
+    async function getAll(path,onPage,maxRecords){var url=path,out=[];while(url){var p=await get(url);
+      out=out.concat((p&&p.value)||[]);if(onPage)onPage(out.length);
+      if(maxRecords&&out.length>=maxRecords){out=out.slice(0,maxRecords);break;}
+      url=(p&&p['@odata.nextLink'])||null;}return out;}
+    async function count(path){var r=await get(path+(path.indexOf('?')>=0?'&':'?')+'$count=true&$top=1');
+      return (r&&r['@odata.count']!=null)?r['@odata.count']:((r&&r.value)?r.value.length:0);}
+    return{ root:root, get:get, getAll:getAll, count:count,
+      // host-agnostic writes (PPTB uses dataverseAPI; web resource uses fetch)
+      updateRec:async function(entity,set,id,body){ if(PPTB)return await window.dataverseAPI.update(entity,id,body); return await freq('PATCH',set+'('+id+')',body); },
+      deleteRec:async function(entity,set,id){ if(PPTB)return await window.dataverseAPI.delete(entity,id); return await freq('DELETE',set+'('+id+')'); },
+      nnAssoc:async function(schema,flNav,survivorId,otherSet,otherEntity,otherId){ if(PPTB)return await window.dataverseAPI.associate(FL_ENTITY,survivorId,schema,otherEntity,otherId); return await freq('POST',FL_SET+'('+survivorId+')/'+flNav+'/$ref',{'@odata.id':root+otherSet+'('+otherId+')'}); },
+      nnDisassoc:async function(schema,flNav,loserId,otherSet,otherId){ if(PPTB)return await window.dataverseAPI.disassociate(FL_ENTITY,loserId,schema,otherId); return await freq('DELETE',FL_SET+'('+loserId+')/'+flNav+'/$ref?$id='+otherSet+'('+otherId+')'); }
+    };
+  }
+  async function mapLimit(items,limit,fn,onProgress){
+    var out=new Array(items.length),i=0,done=0;
+    async function worker(){while(i<items.length){var idx=i++;out[idx]=await fn(items[idx],idx);
+      done++;if(onProgress)onProgress(done,items.length);}}
+    await Promise.all(Array.from({length:Math.min(limit,items.length)},worker));return out;}
+
+  // ---- metadata ----
+  async function loadMetadata(api){
+    var ents=await api.getAll('EntityDefinitions?$select=LogicalName,EntitySetName,PrimaryIdAttribute,DisplayName');
+    var entMap={};ents.forEach(function(e){entMap[e.LogicalName]=e;});
+    var attrs=await api.getAll("EntityDefinitions(LogicalName='"+FL_ENTITY+"')/Attributes?$select=LogicalName,AttributeType,DisplayName&$filter=(AttributeType eq 'String' or AttributeType eq 'Memo')");
+    var fields=attrs.map(function(a){return{logical:a.LogicalName,label:(a.DisplayName&&a.DisplayName.UserLocalizedLabel&&a.DisplayName.UserLocalizedLabel.Label)||a.LogicalName};})
+      .sort(function(a,b){return a.logical.localeCompare(b.logical);});
+    var def=await api.get("EntityDefinitions(LogicalName='"+FL_ENTITY+"')?$select=LogicalName&$expand=OneToManyRelationships($select=ReferencingEntity,ReferencingAttribute,ReferencingEntityNavigationPropertyName,SchemaName),ManyToManyRelationships($select=SchemaName,Entity1LogicalName,Entity2LogicalName,Entity1NavigationPropertyName,Entity2NavigationPropertyName)");
+    function lbl(e){var d=entMap[e];return (d&&d.DisplayName&&d.DisplayName.UserLocalizedLabel&&d.DisplayName.UserLocalizedLabel.Label)||e;}
+    var oneToMany=(def.OneToManyRelationships||[]).map(function(r){var ce=entMap[r.ReferencingEntity]||{};
+      return{kind:'N1',schema:r.SchemaName,childEntity:r.ReferencingEntity,childSet:ce.EntitySetName,childIdAttr:ce.PrimaryIdAttribute,
+        attr:r.ReferencingAttribute,nav:r.ReferencingEntityNavigationPropertyName,label:lbl(r.ReferencingEntity)};})
+      .filter(function(r){return r.childSet&&!SYSTEM_DENY.has(r.childEntity);});
+    var manyToMany=(def.ManyToManyRelationships||[]).map(function(r){var flIsE1=r.Entity1LogicalName===FL_ENTITY;
+      var other=flIsE1?r.Entity2LogicalName:r.Entity1LogicalName;var oe=entMap[other]||{};
+      return{kind:'NN',schema:r.SchemaName,flNav:flIsE1?r.Entity1NavigationPropertyName:r.Entity2NavigationPropertyName,
+        otherEntity:other,otherSet:oe.EntitySetName,otherIdAttr:oe.PrimaryIdAttribute,childEntity:other,label:lbl(other)};}).filter(function(r){return r.otherSet;});
+    // total attribute count on FL (for the completeness component of the Master score)
+    var attrCount=0;try{attrCount=await api.count("EntityDefinitions(LogicalName='"+FL_ENTITY+"')/Attributes?$select=LogicalName");}catch(e){attrCount=0;}
+    return{entMap:entMap,fields:fields,oneToMany:oneToMany,manyToMany:manyToMany,attrCount:attrCount};
+  }
+  // count refs for one FL, restricted to the selected relationship schemas (rels = Set or null=all)
+  async function countRefs(api,meta,flId,rels){
+    var total=0,byRel={};
+    for(var i=0;i<meta.oneToMany.length;i++){var r=meta.oneToMany[i];if(rels&&!rels.has(r.schema))continue;
+      var n=await api.count(r.childSet+'?$filter=_'+r.attr+'_value eq '+flId+'&$select='+r.childIdAttr);byRel[r.schema]=n;total+=n;}
+    for(var j=0;j<meta.manyToMany.length;j++){var m=meta.manyToMany[j];if(rels&&!rels.has(m.schema))continue;
+      var c=await api.count(FL_SET+'('+flId+')/'+m.flNav+'?$select='+meta.entMap[m.otherEntity].PrimaryIdAttribute);byRel[m.schema]=c;total+=c;}
+    return{total:total,byRel:byRel};
+  }
+  async function reallocateN1(api,rel,loserId,survivorId,log){
+    var children=await api.getAll(rel.childSet+'?$select='+rel.childIdAttr+'&$filter=_'+rel.attr+'_value eq '+loserId);
+    for(var i=0;i<children.length;i++){var cid=children[i][rel.childIdAttr],body={};
+      body[rel.nav+'@odata.bind']='/'+FL_SET+'('+survivorId+')';
+      await api.updateRec(rel.childEntity,rel.childSet,cid,body);log('   ↳ '+rel.childEntity+' '+cid+': '+rel.attr+' → survivor');}
+    return children.length;
+  }
+  async function reallocateNN(api,rel,meta,loserId,survivorId,log){
+    var otherId=meta.entMap[rel.otherEntity].PrimaryIdAttribute;
+    var related=await api.getAll(FL_SET+'('+loserId+')/'+rel.flNav+'?$select='+otherId);
+    for(var i=0;i<related.length;i++){var oid=related[i][otherId];
+      try{await api.nnAssoc(rel.schema,rel.flNav,survivorId,rel.otherSet,rel.otherEntity,oid);}catch(e){}
+      await api.nnDisassoc(rel.schema,rel.flNav,loserId,rel.otherSet,oid);
+      log('   ↳ N:N '+rel.schema+': '+oid+' moved to survivor');}
+    return related.length;
+  }
+
+  // ================= app state + rendering =================
+  var S={conn:makeConn(),api:null,meta:null,street1:'',postcode:'',extra:'',limit:'1000',searchField:'msdyn_name',searchTerm:'',rels:new Set(),action:'deactivate',status:'idle',groups:[],totalDup:0,log:[]};
+  $('maxAuto').textContent=MAX_AUTO_INCLUDE;
+
+  // log is kept only for the downloadable change log — not shown on screen
+  function addLog(line){S.log.push(new Date().toISOString().substr(11,8)+'  '+line);}
+  function setLoader(main,sub){var l=$('loader');if(main==null){show(l,false);return;}
+    show(l,true);$('loaderMain').textContent=main;$('loaderSub').textContent=sub||'';}
+  function recordUrl(id){return S.conn.baseUrl+'/main.aspx?etn='+FL_ENTITY+'&id='+id+'&pagetype=entityrecord';}
+  function badge(text,cls){return elem('span',{class:'badge'+(cls?' '+cls:''),text:text});}
+  function renderBadges(){var b=$('badges');b.innerHTML='';
+    if(S.meta)b.appendChild(badge('Detected '+(S.meta.oneToMany.length+S.meta.manyToMany.length)+' relationships in your solution','brand'));}
+
+  function fillSelect(sel,withNone){sel.innerHTML='';if(withNone)sel.appendChild(elem('option',{value:'',text:'(none)'}));
+    S.meta.fields.forEach(function(f){sel.appendChild(elem('option',{value:f.logical,text:f.label+' - ('+f.logical+')'}));});}
+
+  function relList(){return S.meta.oneToMany.concat(S.meta.manyToMany);}
+  function relTip(r){
+    if(r.kind==='NN')return 'N:N — Functional Location ↔ '+r.otherEntity+'  ·  relationship: '+r.schema;
+    return 'N:1 — '+r.childEntity+' → Functional Location  ·  relationship: '+r.schema+(r.attr?('  ·  field: '+r.attr):'');
+  }
+  function renderRels(){
+    var box=$('relsList');box.innerHTML='<legend class="hidden">Relationships to count and reallocate</legend>';
+    var tbl=elem('table',{class:'rels'});
+    tbl.appendChild(elem('thead',null,[elem('tr',null,[
+      elem('th',{scope:'col',text:'Use'}),elem('th',{scope:'col',text:'Relationship'}),
+      elem('th',{scope:'col',text:'Table'}),elem('th',{scope:'col',text:'Type'})])]));
+    var tb=elem('tbody');
+    relList().slice().sort(function(a,b){return a.label.localeCompare(b.label);}).forEach(function(r){
+      var dir=r.kind==='NN'?'N:N':'N:1', tip=relTip(r);
+      var cb=elem('input',{type:'checkbox','aria-label':'Reallocate '+r.label+' ('+tip+')'});cb.checked=S.rels.has(r.schema);
+      cb.addEventListener('change',function(){if(cb.checked)S.rels.add(r.schema);else S.rels.delete(r.schema);});
+      var tr=elem('tr');
+      tr.appendChild(elem('td',null,[cb]));
+      tr.appendChild(elem('td',{title:tip},[elem('b',{text:r.label})]));
+      tr.appendChild(elem('td',{class:'mono muted',title:tip,text:r.childEntity}));
+      tr.appendChild(elem('td',{title:tip,text:dir}));
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    var sc=elem('div',{class:'scroll'});sc.style.maxHeight='320px';sc.appendChild(tbl);
+    box.appendChild(sc);
+  }
+  function setDefaultRels(){
+    var def={account:1,msdyn_workorder:1};S.rels=new Set();
+    relList().forEach(function(r){var e=r.childEntity||'';if(def[e]||/agreement/.test(e))S.rels.add(r.schema);});
+    if(S.rels.size===0)relList().forEach(function(r){S.rels.add(r.schema);});
+  }
+
+  function totals(){var g=S.groups.filter(function(x){return x.include;}),losers=0,refs=0;
+    g.forEach(function(x){x.members.forEach(function(m){if(m.id!==x.survivorId){losers++;refs+=(m.total||0);}});});
+    return{groups:g.length,losers:losers,refs:refs};}
+  function updateSummary(){var t=totals();var s=$('summary');s.innerHTML='';
+    s.appendChild(badge('Showing '+S.groups.length+' of '+S.totalDup+' dup groups'));
+    s.appendChild(badge('Selected: '+t.groups,'brand'));s.appendChild(badge('To delete: '+t.losers,'warn'));
+    s.appendChild(badge('Refs to reallocate: '+t.refs,'danger'));
+    $('btnExecute').textContent='Reallocate & '+(S.action==='delete'?'delete':'deactivate')+' '+t.losers+' FL(s)';
+    $('btnExecute').disabled=(S.status==='processing'||t.losers===0);}
+
+  function renderResults(){
+    var t=$('tbody');t.innerHTML='';
+    S.groups.forEach(function(g){
+      // ---- group header row: include checkbox + match summary ----
+      var hr=elem('tr',{class:'grp'});
+      var cb=elem('input',{type:'checkbox','aria-label':'Include group '+(g.street1||'')+' '+(g.postcode||'')});cb.checked=g.include;
+      cb.addEventListener('change',function(){g.include=cb.checked;updateSummary();
+        if(cb.checked&&g.members.some(function(m){return m.total==null;}))countGroup(g);});
+      hr.appendChild(elem('td',null,[cb]));
+      var hd=elem('td',{colspan:'12'});
+      hd.appendChild(txt((g.street1||'—')+'  ·  '+(g.postcode||'—')+'   ('+g.members.length+' records)'));
+      if(g.oversize)hd.appendChild(elem('span',{class:'badge danger sm',text:' ⚠ large group — counts skipped; tick to count & review'}));
+      hr.appendChild(hd);
+      t.appendChild(hr);
+      // ---- one row per member (sorted by Master %) ----
+      g.members.forEach(function(m){
+        var isSv=(m.id===g.survivorId);
+        var tr=elem('tr',isSv?{class:'sv'}:null);
+        tr.style.cursor='pointer';
+        tr.addEventListener('click',function(ev){var tg=ev.target.tagName;
+          if(tg==='INPUT'||tg==='A'||tg==='LABEL')return; if(!S.conn.baseUrl)return;
+          window.open(recordUrl(m.id),'_blank');});
+        tr.appendChild(elem('td')); // (Use col blank on member rows)
+        // survivor radio
+        var rb=elem('input',{type:'radio',name:'sv-'+g.key,'aria-label':'Keep '+(m.name||m.id.substr(0,8))+' as the master record'});rb.checked=isSv;
+        rb.addEventListener('change',function(){g.survivorId=m.id;renderResults();});
+        var svtd=elem('td',null,[rb]);if(isSv)svtd.appendChild(elem('span',{class:'star',text:' ★'}));
+        tr.appendChild(svtd);
+        // Master % score
+        var sc=(m.score==null)?'—':m.score+'%';
+        var sctd=elem('td',{class:'num'});var scb=elem('b',{text:sc});
+        if(m.score!=null)scb.style.color=(m.score>=66?'#0e700e':m.score>=33?'#9a5b00':'#a4262c');
+        sctd.appendChild(scb);tr.appendChild(sctd);
+        // name + guid + "all fields" link
+        var nm=elem('td',null,[elem('b',{text:m.name||'(no name)'}),elem('div',{class:'mono muted',text:m.id.substr(0,8)})]);
+        var fl=elem('a',{class:'link',text:'all fields ▾',href:'#'});
+        fl.addEventListener('click',function(ev){ev.preventDefault();showDetails(m.id,m.name);});
+        nm.appendChild(fl);
+        tr.appendChild(nm);
+        ['a1','a2','a3','city','country','postcode'].forEach(function(k){tr.appendChild(elem('td',{text:m[k]||'—'}));});
+        tr.appendChild(elem('td',{text:m.createdby||'—'}));
+        tr.appendChild(elem('td',{text:(m.createdon||'').substr(0,10),title:(m.createdon||'').replace('T',' ').substr(0,19)}));
+        var title=Object.keys(m.byRel||{}).filter(function(k){return m.byRel[k]>0;}).map(function(k){return k+': '+m.byRel[k];}).join('\n');
+        var ld=elem('td',{class:'num',title:title||'not counted'});
+        var tv=(m.total==null)?'—':String(m.total);
+        if(isSv)ld.appendChild(elem('b',{text:tv}));else ld.textContent=tv;
+        tr.appendChild(ld);
+        t.appendChild(tr);
+      });
+    });
+    show($('resultsCard'),S.groups.length>0);show($('actions'),S.groups.length>0);
+    show($('noDupes'),S.status!=='idle'&&S.status!=='scanning'&&S.groups.length===0);
+    updateSummary();
+  }
+
+  // ---- init after connect ----
+  async function init(){
+    S.api=makeApi(S.conn);renderBadges();
+    try{
+      if(PPTB){
+        try{var c=await window.toolboxAPI.connections.getActiveConnection();
+          if(c){S.conn.baseUrl=pickOrgUrl(c);var nm=c.name||c.environmentName||c.friendlyName||c.environment;if(nm)S.conn.mode='PPTB: '+String(nm).replace(/^https:\/\//,'');}}catch(e){}
+        addLog('Connected: '+S.conn.mode);renderBadges();
+      }else{
+        addLog('Connected: '+S.conn.mode+' @ '+S.conn.baseUrl);
+        var who=await S.api.get('WhoAmI');addLog('WhoAmI OK — UserId '+who.UserId);
+      }
+      S.meta=await loadMetadata(S.api);
+      fillSelect($('selStreet1'),false);fillSelect($('selPostcode'),false);fillSelect($('selExtra'),true);
+      var guess=function(){var nd=Array.prototype.slice.call(arguments);return (S.meta.fields.find(function(f){
+        return nd.some(function(n){return f.logical.toLowerCase().indexOf(n)>=0||(f.label||'').toLowerCase().indexOf(n)>=0;});})||{}).logical||'';};
+      S.street1=guess('street 1','address1','addressline1','line1');S.postcode=guess('postal','postcode','zip');
+      $('selStreet1').value=S.street1;$('selPostcode').value=S.postcode;$('selExtra').value='';
+      addLog('Metadata loaded: '+S.meta.oneToMany.length+' N:1 + '+S.meta.manyToMany.length+' N:N business relationships reference '+FL_ENTITY+'.');
+      setDefaultRels();renderRels();
+      renderBadges();show($('matchCard'),true);show($('relsCard'),true);
+    }catch(e){
+      addLog('ERROR: '+e.message);
+      // Field Service not installed -> the Functional Location table doesn't exist
+      if(/msdyn_functionallocation/i.test(e.message)&&/(does not exist|not found|0x80060888|could not find)/i.test(e.message)){
+        var fm=$('metaErr');fm.innerHTML='';
+        fm.appendChild(elem('b',{text:'This instance does not have Field Service installed'}));
+        fm.appendChild(txt('The Functional Location table (msdyn_functionallocation) was not found in this environment, so there is nothing to de-duplicate. Connect to an environment with Dynamics 365 Field Service installed.'));
+        show(fm,true);show($('matchCard'),false);show($('relsCard'),false);
+        return;
+      }
+      // same-origin cookie auth failed -> offer the token panel as a fallback
+      if(!S.conn.token&&/401|Unauthorized|403|Forbidden/i.test(e.message)){
+        var c=$('connectCard');c.querySelector('.desc').textContent='Same-origin sign-in did not work — paste a bearer token, or open this page while signed into the org.';
+        $('inUrl').value=S.conn.baseUrl||location.origin;show(c,true);show($('matchCard'),false);
+      }else{var m=$('metaErr');m.innerHTML='';m.appendChild(elem('b',{text:'Could not load metadata'}));m.appendChild(txt(e.message));show(m,true);}
+    }
+  }
+
+  // ---- scan ----
+  var DISPLAY=['msdyn_name','msdyn_address1','msdyn_address2','msdyn_address3','msdyn_city','msdyn_country','msdyn_postalcode','createdon','_createdby_value'];
+  function odataLit(v){return "'"+String(v).replace(/'/g,"''")+"'";}
+  function memberFromFl(fl,c,filled){return{id:fl.msdyn_functionallocationid,name:fl.msdyn_name,
+    a1:fl.msdyn_address1,a2:fl.msdyn_address2,a3:fl.msdyn_address3,city:fl.msdyn_city,country:fl.msdyn_country,
+    postcode:fl.msdyn_postalcode,createdby:fl['_createdby_value@OData.Community.Display.V1.FormattedValue']||fl['_createdby_value_Formatted']||'',
+    createdon:fl.createdon,street1:fl[S.street1],total:(c?c.total:null),byRel:(c?c.byRel:{}),filled:(filled==null?null:filled),score:null};}
+  // count populated (non-null, non-annotation) fields on a full record
+  function countFilled(r){var n=0;for(var k in r){if(k.indexOf('@')>=0)continue;var v=r[k];if(v!==null&&v!==''&&v!==undefined)n++;}return n;}
+  // Master % = completeness (fields filled) + references + age (older = more "original").
+  // Weights: 45% completeness, 35% references, 20% age. Highest score becomes the survivor.
+  function scoreMembers(members){
+    var maxRefs=0,maxFilled=0,times=[];
+    members.forEach(function(m){if(m.total!=null&&m.total>maxRefs)maxRefs=m.total;
+      if(m.filled!=null&&m.filled>maxFilled)maxFilled=m.filled;
+      if(m.createdon)times.push(new Date(m.createdon).getTime());});
+    var oldest=times.length?Math.min.apply(null,times):0,newest=times.length?Math.max.apply(null,times):0;
+    members.forEach(function(m){
+      if(m.total==null){m.score=null;return;}            // not counted yet (oversized) -> no score
+      // completeness: absolute (filled ÷ all FL fields) if we know the field count, else relative to the group
+      var comp=(S.meta.attrCount&&m.filled!=null)?Math.min(1,m.filled/S.meta.attrCount)
+              :(maxFilled?((m.filled||0)/maxFilled):0);
+      var refS=maxRefs?((m.total||0)/maxRefs):0;
+      var t=m.createdon?new Date(m.createdon).getTime():newest;
+      var ageS=(newest===oldest)?1:(newest-t)/(newest-oldest); // oldest -> 1
+      m.score=Math.round(100*(0.45*comp+0.35*refS+0.20*ageS));
+    });
+  }
+  function sortMembers(members){members.sort(function(a,b){
+    return ((b.score||0)-(a.score||0))||((b.total||0)-(a.total||0))||(new Date(a.createdon)-new Date(b.createdon));});}
+  async function enrichMember(fl){
+    var c=await countRefs(S.api,S.meta,fl.msdyn_functionallocationid,S.rels);
+    var filled=null;try{var full=await S.api.get(FL_SET+'('+fl.msdyn_functionallocationid+')');filled=countFilled(full);}catch(e){}
+    return memberFromFl(fl,c,filled);
+  }
+  async function buildGroup(recs){
+    var oversize=recs.length>MAX_AUTO_INCLUDE,members;
+    if(oversize){ // skip counting/scoring for oversized groups (auto-excluded; hundreds is slow)
+      members=recs.map(function(fl){return memberFromFl(fl,null,null);});
+      members.sort(function(a,b){return new Date(a.createdon)-new Date(b.createdon);});
+    }else{
+      members=await mapLimit(recs,8,function(fl){return enrichMember(fl);});
+      scoreMembers(members);sortMembers(members);
+    }
+    return{key:members.map(function(m){return m.id;}).join('|'),include:!oversize,oversize:oversize,
+      survivorId:members[0].id,street1:members[0].street1,postcode:members[0].postcode,members:members};
+  }
+  // count + score an oversized group on demand (when the user opts it in)
+  async function countGroup(g){
+    setLoader('Gathering information…','Scoring '+g.members.length+' records…');
+    var ids=g.members.map(function(m){return m.id;});
+    var enriched=await mapLimit(g.members,8,async function(m){
+      var c=await countRefs(S.api,S.meta,m.id,S.rels);m.total=c.total;m.byRel=c.byRel;
+      try{var full=await S.api.get(FL_SET+'('+m.id+')');m.filled=countFilled(full);}catch(e){}
+      return m;});
+    scoreMembers(enriched);sortMembers(enriched);
+    g.members=enriched;g.survivorId=enriched[0].id;g.oversize=false;setLoader(null);renderResults();
+  }
+  // Ask the SERVER for duplicate keys (groupby + count), so we don't pull every record.
+  // Returns null if aggregation isn't available (caller then does a full-load fallback).
+  async function findDupKeys(mf,cap,searchClause){
+    var pre=searchClause?('filter('+searchClause+')/'):'';
+    var agg=pre+'groupby(('+mf.join(',')+'),aggregate($count as cnt))';
+    var rows;
+    try{ rows=await S.api.getAll(FL_SET+'?$apply='+agg+'/filter(cnt gt 1)'); }
+    catch(e){ addLog('Filtered aggregate failed ('+e.message+'); trying plain groupby.');
+      try{ rows=(await S.api.getAll(FL_SET+'?$apply='+agg)).filter(function(r){return r.cnt>1;}); }
+      catch(e2){ addLog('Aggregation unavailable ('+e2.message+'); will full-load.'); return null; } }
+    rows=rows.filter(function(r){return mf.every(function(f){return norm(r[f])!=='';});}); // all match fields present
+    rows.sort(function(a,b){return b.cnt-a.cnt;});
+    S.totalDup=rows.length;
+    if(cap&&rows.length>cap)rows=rows.slice(0,cap);
+    return rows;
+  }
+  async function scan(){
+    S.status='scanning';S.groups=[];S.totalDup=0;renderResults();show($('mergedCard'),false);$('doneBadge').innerHTML='';
+    $('btnScan').disabled=true;$('btnScan').textContent='Scanning…';
+    try{
+      var mf=[S.street1,S.postcode,S.extra].filter(Boolean);
+      var cap=(S.limit==='all')?null:Number(S.limit); // cap = number of duplicate GROUPS to return
+      var sel=['msdyn_functionallocationid'].concat(DISPLAY).concat(mf).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).join(',');
+      var searchClause=S.searchTerm?('contains('+S.searchField+','+odataLit(S.searchTerm)+')'):'';
+      addLog('Match key: '+mf.join(' + ')+'; group limit: '+(cap||'all')+(searchClause?('; search: '+searchClause):''));
+      setLoader('Gathering information…','Finding duplicate groups (server-side)…');
+      var built=[];
+      var keys=await findDupKeys(mf,cap,searchClause);
+      if(keys){
+        addLog(S.totalDup+' duplicate group(s) found; fetching '+keys.length+' group(s).');
+        built=await mapLimit(keys,4,async function(k,idx){
+          var filterRaw=mf.map(function(f){return f+' eq '+odataLit(k[f]);}).join(' and ')+(searchClause?(' and '+searchClause):'');
+          var recs=await S.api.getAll(FL_SET+'?$select='+sel+'&$filter='+encodeURIComponent(filterRaw));
+          setLoader('Gathering information…','Loaded group '+(idx+1)+' / '+keys.length+'…');
+          return recs.length>1?await buildGroup(recs):null;
+        });
+        built=built.filter(Boolean);
+      }else{
+        // fallback: load everything and group client-side
+        setLoader('Gathering information…','Loading all functional locations…');
+        var fq=FL_SET+'?$select='+sel+(searchClause?('&$filter='+encodeURIComponent(searchClause)):'');
+        var all=await S.api.getAll(fq,function(n){setLoader('Gathering information…','Loaded '+n+' functional locations…');});
+        var map=new Map();
+        all.forEach(function(fl){var parts=mf.map(function(f){return norm(fl[f]);});
+          if(parts.some(function(p){return p==='';}))return;var key=parts.join('|||');
+          if(!map.has(key))map.set(key,[]);map.get(key).push(fl);});
+        var dup=Array.from(map.values()).filter(function(a){return a.length>1;}).sort(function(a,b){return b.length-a.length;});
+        S.totalDup=dup.length;if(cap&&dup.length>cap)dup=dup.slice(0,cap);
+        for(var i=0;i<dup.length;i++){setLoader('Gathering information…','Counting group '+(i+1)+' / '+dup.length+'…');built.push(await buildGroup(dup[i]));}
+      }
+      // scored groups first (oversized/uncounted sink to the bottom), then largest first
+      built.sort(function(a,b){return ((a.oversize?1:0)-(b.oversize?1:0))||(b.members.length-a.members.length);});
+      S.groups=built;
+      var auto=built.filter(function(g){return g.include;}).length;
+      addLog(built.length+' group(s) returned; '+auto+' auto-selected, '+(built.length-auto)+' oversized (>'+MAX_AUTO_INCLUDE+') unselected.');
+      S.status='scanned';setLoader(null);renderResults();
+    }catch(e){addLog('SCAN FAILED: '+e.message);S.status='idle';setLoader(null);
+      var m=$('metaErr');m.innerHTML='';m.appendChild(elem('b',{text:'Scan failed'}));m.appendChild(txt(e.message));show(m,true);}
+    $('btnScan').disabled=false;$('btnScan').textContent='Scan for duplicates (read-only)';
+  }
+
+  // ---- execute ----
+  async function execute(){
+    show($('modal'),false);S.status='processing';updateSummary();$('btnRescan').disabled=true;
+    var active=S.groups.filter(function(g){return g.include;}),losers=[];
+    active.forEach(function(g){g.members.forEach(function(m){if(m.id!==g.survivorId)losers.push({g:g,m:m});});});
+    var moved=0,deleted=0,delByGroup={};
+    try{
+      addLog('=== EXECUTION START — '+active.length+' group(s), '+losers.length+' loser(s) ===');
+      setLoader('Merging duplicates…','0 / '+losers.length+' processed');
+      for(var i=0;i<losers.length;i++){var g=losers[i].g,m=losers[i].m;
+        addLog('Loser '+m.name+' ('+m.id+') → survivor '+g.survivorId);
+        for(var a=0;a<S.meta.oneToMany.length;a++){if(!S.rels.has(S.meta.oneToMany[a].schema))continue;moved+=await reallocateN1(S.api,S.meta.oneToMany[a],m.id,g.survivorId,addLog);}
+        for(var b=0;b<S.meta.manyToMany.length;b++){if(!S.rels.has(S.meta.manyToMany[b].schema))continue;moved+=await reallocateNN(S.api,S.meta.manyToMany[b],S.meta,m.id,g.survivorId,addLog);}
+        var remaining=(await countRefs(S.api,S.meta,m.id,S.rels)).total;
+        if(remaining>0){addLog('   ⚠ '+remaining+' selected reference(s) remain — SKIPPING '+S.action+' of '+m.id);}
+        else if(S.action==='deactivate'){
+          try{await S.api.updateRec(FL_ENTITY,FL_SET,m.id,{statecode:1,statuscode:2});deleted++;delByGroup[g.key]=(delByGroup[g.key]||0)+1;addLog('   ✓ deactivated '+m.id);}
+          catch(de){addLog('   ✗ deactivate failed: '+de.message);}}
+        else{
+          try{await S.api.deleteRec(FL_ENTITY,FL_SET,m.id);deleted++;delByGroup[g.key]=(delByGroup[g.key]||0)+1;addLog('   ✓ deleted '+m.id);}
+          catch(de){addLog('   ✗ delete failed (other references may exist): '+de.message);}}
+        setLoader('Merging duplicates…',(i+1)+' / '+losers.length+' processed');}
+      addLog('=== DONE — '+moved+' reference(s) reallocated, '+deleted+' FL(s) '+(S.action==='delete'?'deleted':'deactivated')+' ===');
+      // post-merge: re-count each survivor live and compare to the combined "before"
+      setLoader('Gathering information…','Recounting surviving records…');
+      var merged=[];
+      for(var gi=0;gi<active.length;gi++){var grp=active[gi];
+        var before=grp.members.reduce(function(s,mm){return s+(mm.total||0);},0);
+        var sv=grp.members.filter(function(mm){return mm.id===grp.survivorId;})[0];
+        var after=null;try{after=(await countRefs(S.api,S.meta,grp.survivorId,S.rels)).total;}catch(e){}
+        merged.push({id:grp.survivorId,name:sv?sv.name:'',postcode:grp.postcode,before:before,after:after,deleted:delByGroup[grp.key]||0});}
+      renderMerged(merged);
+      S.status='done';setLoader(null);$('doneBadge').appendChild(badge('Completed','ok'));
+    }catch(e){addLog('EXECUTION HALTED: '+e.message);S.status='scanned';setLoader(null);
+      var m2=$('metaErr');m2.innerHTML='';m2.appendChild(elem('b',{text:'Execution halted'}));m2.appendChild(txt(e.message));show(m2,true);}
+    $('btnRescan').disabled=false;updateSummary();
+  }
+
+  function renderMerged(rows){
+    var t=$('mergedBody');t.innerHTML='';
+    rows.forEach(function(r){
+      var tr=elem('tr',{class:'sv'});
+      var a=elem('a',{class:'link',text:r.name||'(no name)',href:recordUrl(r.id),target:'_blank'});
+      tr.appendChild(elem('td',null,[a,elem('div',{class:'mono muted',text:r.id.substr(0,8)})]));
+      tr.appendChild(elem('td',{text:r.postcode||'—'}));
+      tr.appendChild(elem('td',{class:'num',text:String(r.before)}));
+      var aft=elem('td',{class:'num'});aft.appendChild(elem('b',{text:r.after==null?'?':String(r.after)}));tr.appendChild(aft);
+      tr.appendChild(elem('td',{class:'num',text:String(r.deleted)}));
+      t.appendChild(tr);
+    });
+    show($('mergedCard'),rows.length>0);
+  }
+
+  async function showDetails(id,name){
+    $('detailTitle').textContent='All fields — '+(name||id);
+    var body=$('detailBody');body.textContent='Loading…';show($('detailModal'),true);$('btnDetailClose').focus();
+    try{
+      var r=await S.api.get(FL_SET+'('+id+')');
+      var keys=Object.keys(r).filter(function(k){return k.indexOf('@')<0&&r[k]!==null&&r[k]!=='';}).sort();
+      var head=elem('div',{class:'desc'},[]);
+      var open=elem('a',{class:'link',text:'Open record in D365 ↗',href:recordUrl(id),target:'_blank'});
+      head.appendChild(open);head.appendChild(txt('   '+keys.length+' populated field(s)'));
+      var tbl=elem('table');
+      keys.forEach(function(k){var fv=r[k+'@OData.Community.Display.V1.FormattedValue'];
+        var val=(fv!=null)?fv:String(r[k]);
+        tbl.appendChild(elem('tr',null,[elem('td',{text:k}),elem('td',{text:val})]));});
+      body.innerHTML='';body.appendChild(head);body.appendChild(tbl);
+    }catch(e){body.textContent='Error: '+e.message;}
+  }
+
+  function downloadLog(){var blob=new Blob([S.log.join('\n')],{type:'text/plain'});var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download='fl-merge-audit-'+new Date().toISOString().replace(/[:.]/g,'-')+'.txt';a.click();}
+
+  // ---- wire up ----
+  $('selStreet1').addEventListener('change',function(e){S.street1=e.target.value;});
+  $('selPostcode').addEventListener('change',function(e){S.postcode=e.target.value;});
+  $('selExtra').addEventListener('change',function(e){S.extra=e.target.value;});
+  $('selLimit').addEventListener('change',function(e){S.limit=e.target.value;});
+  $('selAction').addEventListener('change',function(e){S.action=e.target.value;updateSummary();});
+  $('selSearchField').addEventListener('change',function(e){S.searchField=e.target.value;});
+  $('inSearch').addEventListener('input',function(e){S.searchTerm=e.target.value.trim();});
+  $('btnScan').addEventListener('click',scan);
+  $('btnRescan').addEventListener('click',scan);
+  $('btnDownload').addEventListener('click',downloadLog);
+  $('btnExecute').addEventListener('click',function(){var t=totals();
+    var act=S.action==='delete'?'permanently delete':'deactivate';
+    var note=S.action==='delete'?'Reference re-points are reversible from the change log; <b>deletes are not</b>.':'Both reference re-points and deactivation are reversible (reactivate the record).';
+    $('modalBody').innerHTML='This will reallocate <b>'+t.refs+'</b> referencing record(s) onto survivors and then <b>'+act+' '+t.losers+' functional location(s)</b> across '+t.groups+' group(s).<br><br>'+note+' Continue?';
+    show($('modal'),true);$('btnCancel').focus();});
+  $('btnCancel').addEventListener('click',function(){show($('modal'),false);});
+  $('btnConfirm').addEventListener('click',execute);
+  $('btnDetailClose').addEventListener('click',function(){show($('detailModal'),false);});
+  $('detailModal').addEventListener('click',function(e){if(e.target.id==='detailModal')show($('detailModal'),false);});
+  $('modal').addEventListener('click',function(e){if(e.target.id==='modal')show($('modal'),false);});
+  // Escape closes whichever dialog is open (keyboard accessibility)
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){
+    if(!$('detailModal').classList.contains('hidden'))show($('detailModal'),false);
+    if(!$('modal').classList.contains('hidden'))show($('modal'),false);}});
+  $('btnConnect').addEventListener('click',function(){
+    var url=$('inUrl').value,token=$('inToken').value;if(!url||!token)return;
+    S.conn={mode:'Standalone (token)',baseUrl:url.replace(/\/+$/,''),token:token,ready:true};
+    show($('connectCard'),false);init();});
+
+  // ---- boot ----
+  renderBadges();
+  if(S.conn.ready)init();else show($('connectCard'),true);
+})();
+</script>
+</body>
+</html>

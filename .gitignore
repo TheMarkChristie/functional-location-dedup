@@ -1,0 +1,14 @@
+# build output
+**/bin/
+**/obj/
+node_modules/
+_dist/
+dist-nuget/
+pptb/dist/
+
+# secrets / local tokens
+_discover/token*.json
+
+# misc
+*.user
+.vs/
