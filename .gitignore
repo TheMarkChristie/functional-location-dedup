@@ -12,3 +12,6 @@ _discover/token*.json
 # misc
 *.user
 .vs/
+
+# intermediate icon base64
+xrmtoolbox/*.b64
