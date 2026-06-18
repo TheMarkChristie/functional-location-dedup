@@ -2,13 +2,12 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
     <id>MarkChristie.FunctionalLocationDeduplicator</id>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     <title>Functional Location De-duplicator</title>
     <authors>Mark Christie</authors>
     <owners>Mark Christie</owners>
     <projectUrl>https://github.com/TheMarkChristie/functional-location-dedup</projectUrl>
-    <icon>icon.png</icon>
-    <iconUrl>https://raw.githubusercontent.com/TheMarkChristie/functional-location-dedup/main/icon.png</iconUrl>
+    <iconUrl>https://raw.githubusercontent.com/TheMarkChristie/functional-location-dedup/main/logo.png</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <license type="expression">MIT</license>
     <description>Merge duplicate Functional Locations onto a master record. Find duplicates by Street 1 + Postcode, score each record by completeness + linked records + age, reallocate every linked record (Account, Work Order, Agreement, …) onto the highest-scoring master, verify, then deactivate or delete the duplicates.</description>
@@ -24,7 +23,5 @@
          The Tool Library extracts a "Plugins" folder into the user's XrmToolBox Plugins dir. -->
     <file src="bin\Release\net48\FunctionalLocationMerge.dll" target="Plugins" />
     <file src="bin\Release\net48\app\index.html" target="Plugins\app" />
-    <!-- embedded package icon (128px) shown on nuget.org and used by the Tool Library -->
-    <file src="..\..\icon.png" target="" />
   </files>
 </package>
