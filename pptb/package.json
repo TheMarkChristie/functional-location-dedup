@@ -1,6 +1,6 @@
 {
   "name": "functional-location-dedup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Functional Location De-duplicator",
   "description": "Merge duplicate Functional Locations onto a master record.",
   "main": "index.html",
