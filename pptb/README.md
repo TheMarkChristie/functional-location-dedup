@@ -74,7 +74,10 @@ group to count and score it on demand.
 
 ## Theme
 
-Follows the OS / ToolBox light or dark theme automatically (`prefers-color-scheme`).
+Fluent 2 — the same modern model-driven look as the D365 web resource, in the shade each
+host wants. The HTML sets `body[data-host]` at runtime and one token block carries a palette
+for each: dark in Power Platform ToolBox (`pptb`), light in XrmToolBox (`xtb`) and as a D365
+web resource (`web`). It does not follow `prefers-color-scheme` — the host decides.
 
 ---
 

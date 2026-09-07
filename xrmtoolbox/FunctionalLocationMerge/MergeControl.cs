@@ -59,15 +59,18 @@ namespace FunctionalLocationMerge
 
             await _web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(configJs);
 
+            // The file name is deliberately unique. Every XrmToolBox plugin dll installs flat
+            // into Plugins, so all WebView2 tools share the one Plugins\app folder - a generic
+            // index.html there is silently overwritten by whichever tool installs last.
             var html = Path.Combine(
                 Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".",
-                "app", "index.html");
+                "app", "functional-location-dedup.html");
 
             if (File.Exists(html))
                 _web.CoreWebView2.Navigate(new Uri(html).AbsoluteUri);
             else
                 _web.CoreWebView2.NavigateToString(
-                    "<h3 style='font-family:Segoe UI'>app/index.html not found next to the plugin dll.</h3>" +
+                    "<h3 style='font-family:Segoe UI'>app/functional-location-dedup.html not found next to the plugin dll.</h3>" +
                     "<p>Ensure prx3_FunctionalLocationMerge.html was copied to the output 'app' folder.</p>");
         }
 

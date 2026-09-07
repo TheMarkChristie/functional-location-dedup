@@ -1,6 +1,8 @@
 name: Publish PPTB tool to npm
 
-# Builds the PPTB dist (dark single-file HTML + icon) and publishes to npm.
+# Builds the PPTB dist (the canonical single-file HTML + icon + shared stylesheet) and
+# publishes to npm. The dark theme is applied at runtime via body[data-host="pptb"], not by
+# the build, so dist/index.html is byte-identical to the D365 web resource.
 # Uses an npm Automation token (bypasses 2FA) stored as the repo secret NPM_TOKEN.
 
 on:
@@ -20,7 +22,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Build dist (dark)
+      - name: Build dist
         working-directory: pptb
         run: node build.js
 

@@ -60,20 +60,24 @@ when ticked.
 
 ## Theme
 
-Follows the OS theme (light/dark) automatically.
+Fluent 2 light — the same modern model-driven look as the D365 web resource. The HTML sets
+`body[data-host="xtb"]` at runtime and the shared token block picks the light palette (Power
+Platform ToolBox gets the dark one from the very same file).
 
 ---
 
 ## Build
 Requires the .NET Framework 4.8 developer pack. Targets `XrmToolBoxPackage` 1.2025.7.71 and
-`Microsoft.Web.WebView2`. The build bundles the shared HTML to `app\index.html`.
+`Microsoft.Web.WebView2`. The build bundles the shared HTML to
+`app\functional-location-dedup.html`.
 ```powershell
 cd FunctionalLocationMerge
 dotnet build -c Release
 ```
 
 ## Install
-Run [`install.ps1`](install.ps1) — it copies `FunctionalLocationMerge.dll` + `app\index.html`
+Run [`install.ps1`](install.ps1) — it copies `FunctionalLocationMerge.dll` +
+`app\functional-location-dedup.html`
 into `%APPDATA%\MscrmTools\XrmToolBox\Plugins\` (XrmToolBox already ships WebView2 and the
 Dataverse SDK, so only those two files are copied to avoid version conflicts). Restart
 XrmToolBox → open **Functional Location De-duplicator** → connect with an OAuth connection.
@@ -88,8 +92,13 @@ To update: rebuild, re-run `install.ps1`, restart XrmToolBox.
   `UpdateConnection(IOrganizationService, ConnectionDetail, string, object)`; reads
   `ConnectionDetail.WebApplicationUrl` and `ConnectionDetail.ServiceClient.CurrentAccessToken`,
   then `AddScriptToExecuteOnDocumentCreatedAsync` sets `window.XTB_CONFIG = { baseUrl, token }`
-  before navigating WebView2 to `app/index.html`.
+  before navigating WebView2 to `app/functional-location-dedup.html`.
 
 > **Single source of truth:** the UI lives in
-> `..\webresource\prx3_FunctionalLocationMerge.html`; the `.csproj` copies it to
-> `app\index.html` on build. Edit that one file to keep all hosts in line.
+> `..\webresource\prx3_FunctionalLocationMerge.html`; the `.csproj` runs
+> `..\build-app.js`, which copies it to `app\functional-location-dedup.html` on build.
+> Edit that one file to keep all hosts in line.
+>
+> **The file name must stay unique.** Every XrmToolBox plugin dll installs flat into `Plugins`,
+> so every WebView2 tool maps its virtual host onto the same `Plugins\app` folder — a
+> generic `index.html` there is silently overwritten by whichever tool installs last.

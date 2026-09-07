@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
     <id>MarkChristie.FunctionalLocationDeduplicator</id>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
     <title>Functional Location De-duplicator</title>
     <authors>Mark Christie</authors>
     <owners>Mark Christie</owners>
@@ -12,7 +12,7 @@
     <license type="expression">MIT</license>
     <description>Merge duplicate Functional Locations onto a master record. Find duplicates by Street 1 + Postcode, score each record by completeness + linked records + age, reallocate every linked record (Account, Work Order, Agreement, …) onto the highest-scoring master, verify, then deactivate or delete the duplicates.</description>
     <summary>Merge duplicate Functional Locations onto a master record.</summary>
-    <releaseNotes>Initial release. WebView2-hosted Windows 95 UI; shared logic with the D365 web resource and PPTB tool.</releaseNotes>
+    <releaseNotes>The interface has been rebuilt in the Fluent 2 design language so the tool looks like a modern model-driven app - light in XrmToolBox, dark in Power Platform ToolBox. This is a visual change only; how the tool finds, scores and merges duplicate Functional Locations is unchanged. It also no longer collides with other WebView2 XrmToolBox tools: the page is installed as app\functional-location-dedup.html instead of the generic app\index.html, so installing this tool no longer overwrites another tool's page in the shared Plugins\app folder.</releaseNotes>
     <tags>XrmToolBox Plugin Dataverse Dynamics365 FieldService FunctionalLocation Duplicates Merge</tags>
     <dependencies>
       <dependency id="XrmToolBox" version="1.2025.7.71" />
@@ -22,6 +22,9 @@
     <!-- Ship ONLY our own assembly + HTML; XrmToolBox provides WebView2 + the Dataverse SDK.
          The Tool Library extracts a "Plugins" folder into the user's XrmToolBox Plugins dir. -->
     <file src="bin\Release\net48\FunctionalLocationMerge.dll" target="Plugins" />
-    <file src="bin\Release\net48\app\index.html" target="Plugins\app" />
+    <!-- The HTML name must stay UNIQUE: every plugin dll installs flat into Plugins, so all
+         WebView2 tools share the one Plugins\app folder and a generic index.html there is
+         silently overwritten by whichever tool installs last. -->
+    <file src="bin\Release\net48\app\functional-location-dedup.html" target="Plugins\app" />
   </files>
 </package>

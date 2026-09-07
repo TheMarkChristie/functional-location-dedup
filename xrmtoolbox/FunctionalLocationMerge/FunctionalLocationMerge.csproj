@@ -15,7 +15,7 @@
     <Product>Functional Location De-duplicator</Product>
     <Company>Mark Christie</Company>
     <Authors>Mark Christie</Authors>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,14 +26,17 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3351.48" />
   </ItemGroup>
 
-  <!-- regenerate the Win95-skinned app/index.html from the canonical logic before each build -->
-  <Target Name="SkinWin95" BeforeTargets="BeforeBuild">
-    <Exec Command="node &quot;$(MSBuildProjectDirectory)\..\skin-win95.js&quot;" ContinueOnError="true" />
+  <!-- refresh app\functional-location-dedup.html from the canonical HTML before each build -->
+  <Target Name="BuildApp" BeforeTargets="BeforeBuild">
+    <Exec Command="node &quot;$(MSBuildProjectDirectory)\..\build-app.js&quot;" ContinueOnError="true" />
   </Target>
 
   <ItemGroup>
-    <!-- ship the generated Win95 HTML next to the dll so WebView2 can load it -->
-    <None Include="app\index.html">
+    <!-- Ship the app HTML next to the dll so WebView2 can load it. The file name must stay
+         UNIQUE: every plugin dll installs flat into Plugins, so all WebView2 tools share the
+         one Plugins\app folder and a generic index.html is silently overwritten by whichever
+         tool installs last. -->
+    <None Include="app\functional-location-dedup.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

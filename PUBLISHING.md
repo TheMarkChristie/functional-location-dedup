@@ -20,26 +20,28 @@ through different channels:
 (or use NuGet Package Explorer); the GitHub repo above (for `projectUrl` + `iconUrl`).
 
 **Rule:** the NuGet `version` must **exactly** match the assembly version. Here both are
-`1.0.0` (assembly `1.0.0.0`). Bump them together for future releases (csproj `<Version>` +
+`1.0.3` (assembly `1.0.3.0`). Bump them together for future releases (csproj `<Version>` +
 `.nuspec` `<version>`).
 
-1. **Build Release** (bundles the Win95 HTML into `app\index.html`):
+1. **Build Release** (bundles the app HTML into `app\functional-location-dedup.html`):
    ```powershell
    cd C:\PCF\FunctionalLocationMerge\xrmtoolbox\FunctionalLocationMerge
    dotnet build -c Release
    ```
-2. **Pack the NuGet** from the custom nuspec (ships only our DLL + `app\index.html` into a
+2. **Pack the NuGet** from the custom nuspec (ships only our DLL +
+   `app\functional-location-dedup.html` into a
    `Plugins` folder — XrmToolBox already provides WebView2 and the Dataverse SDK):
    ```powershell
    nuget pack FunctionalLocationMerge.nuspec -OutputDirectory ..\..\_dist
    ```
-   Produces `MarkChristie.FunctionalLocationDeduplicator.1.0.0.nupkg`.
+   Produces `MarkChristie.FunctionalLocationDeduplicator.1.0.3.nupkg`.
    *(Optional sanity check: open the .nupkg in NuGet Package Explorer — confirm it contains
-   `Plugins\FunctionalLocationMerge.dll` + `Plugins\app\index.html`, the `XrmToolBox`
+   `Plugins\FunctionalLocationMerge.dll` + `Plugins\app\functional-location-dedup.html`,
+   the `XrmToolBox`
    dependency, the `XrmToolBox` tag, author/owner = Mark Christie, and a working `iconUrl`.)*
 3. **Push to nuget.org** and wait for it to index (a few minutes):
    ```powershell
-   nuget push ..\..\_dist\MarkChristie.FunctionalLocationDeduplicator.1.0.0.nupkg -ApiKey <YOUR_NUGET_KEY> -Source https://api.nuget.org/v3/index.json
+   nuget push ..\..\_dist\MarkChristie.FunctionalLocationDeduplicator.1.0.3.nupkg -ApiKey <YOUR_NUGET_KEY> -Source https://api.nuget.org/v3/index.json
    ```
 4. **Register** the package id at **https://www.xrmtoolbox.com/plugins/new/** — paste
    `MarkChristie.FunctionalLocationDeduplicator`. The portal reads the metadata; an XrmToolBox
@@ -61,12 +63,12 @@ above; a PPTB account for the submission form.
    ```
    "404 / not found" = available. If taken, change `name` in `pptb/package.json` (e.g.
    `@themarkchristie/functional-location-dedup`).
-2. **Build** the dark `dist/`:
+2. **Build** `dist/` (the one host-agnostic HTML; it renders Fluent dark under ToolBox):
    ```powershell
    cd C:\PCF\FunctionalLocationMerge\pptb
    node build.js
    ```
-   Verify `dist/` has `index.html` and `Functional Location De-duplicator.svg`.
+   Verify `dist/` has `index.html`, `Functional Location De-duplicator.svg` and `prx3_flmerge.css`.
 3. **Validate** (fix every error before publishing):
    ```powershell
    npx pptb-validate

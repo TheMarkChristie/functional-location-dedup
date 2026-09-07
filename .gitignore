@@ -15,3 +15,6 @@ _discover/token*.json
 
 # intermediate icon base64
 xrmtoolbox/*.b64
+
+# build artefacts
+*.tgz

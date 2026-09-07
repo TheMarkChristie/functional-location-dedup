@@ -13,75 +13,348 @@
   onto the most-referenced survivor, then delete the duplicate. Match REQUIRES Street 1 AND
   Postcode (and optional extra field) to all be non-blank. Scan + dry-run are read-only;
   writes happen only after the confirm dialog.
+
+  ONE FILE, THREE HOSTS. The host is detected at runtime and body[data-host] is set, and
+  the single Fluent 2 token block below carries a palette for each:
+    body[data-host="web"]   D365 web resource / standalone -> Fluent LIGHT
+    body[data-host="xtb"]   XrmToolBox (WebView2 plugin)   -> Fluent LIGHT
+    body[data-host="pptb"]  Power Platform ToolBox         -> Fluent DARK
+  No build-time skinning: every host ships this identical file.
 -->
 <style>
-  :root{
-    --bg:#faf9f8;--card:#fff;--line:#e1dfdd;--line2:#edebe9;--ink:#242424;--ink2:#605e5c;
-    --brand:#0f6cbd;--brand-d:#115ea3;--warn:#9a5b00;--warn-bg:#fff4ce;--danger:#a4262c;
-    --danger-bg:#fde7e9;--ok:#0e700e;--ok-bg:#dff6dd;--info-bg:#eff6fc;
-    --shadow:0 1.6px 3.6px rgba(0,0,0,.10),0 .3px .9px rgba(0,0,0,.07);
-  }
-  *{box-sizing:border-box}
-  :focus-visible{outline:2px solid var(--brand);outline-offset:1px}
-  .hidden{display:none}
-  .byline{color:var(--ink2);font-size:13px;margin:-2px 0 8px}
-  table.rels td:first-child,table.rels th:first-child{width:44px;text-align:center}
-  table.rels td[title]{cursor:help}
-  @media (prefers-reduced-motion: reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
-  body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
-  .wrap{max-width:1200px;margin:0 auto;padding:20px}
-  h1{font-size:24px;font-weight:600;margin:0 0 4px}h2{font-size:16px;font-weight:600;margin:0 0 10px}
-  .mono{font-family:Consolas,'Cascadia Mono',monospace;font-size:12px}.muted{color:var(--ink2)}
-  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
-  .spaced{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
-  .card .desc{color:var(--ink2);margin:2px 0 12px}
-  .field{display:flex;flex-direction:column;gap:4px;min-width:260px}
-  .field>label{font-weight:600;font-size:13px}.field .hint{color:var(--ink2);font-size:12px}
-  input[type=text],textarea,select{font:inherit;padding:6px 8px;border:1px solid #8a8886;border-radius:4px;background:#fff;color:var(--ink)}
-  input[type=text]:focus,textarea:focus,select:focus{outline:2px solid var(--brand);outline-offset:-1px;border-color:var(--brand)}
-  textarea{resize:vertical}
-  button{font:inherit;cursor:pointer;border-radius:4px;padding:6px 16px;border:1px solid #8a8886;background:#fff;color:var(--ink)}
-  button:hover:not(:disabled){background:#f3f2f1}button:disabled{opacity:.5;cursor:not-allowed}
-  button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
-  button.primary:hover:not(:disabled){background:var(--brand-d);border-color:var(--brand-d)}
-  button.subtle{border-color:transparent;background:transparent;color:var(--brand)}
-  button.subtle:hover:not(:disabled){background:#f3f2f1}
-  .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;margin-right:8px;background:#f3f2f1;color:var(--ink2)}
-  .badge.brand{background:var(--info-bg);color:var(--brand)}.badge.warn{background:var(--warn-bg);color:var(--warn)}
-  .badge.danger{background:var(--danger-bg);color:var(--danger)}.badge.ok{background:var(--ok-bg);color:var(--ok)}
-  .badge.sm{font-size:11px;padding:1px 6px;margin-top:4px}
-  .bar{border-radius:4px;padding:10px 12px;margin:10px 0;border:1px solid transparent}
-  .bar.info{background:var(--info-bg);border-color:#c7e0f4}.bar.ok{background:var(--ok-bg);border-color:#bad80a33}
-  .bar.warn{background:var(--warn-bg);border-color:#f7e08b}.bar.error{background:var(--danger-bg);border-color:#f1bbbe}
-  .bar b{display:block}
-  .prog{height:6px;background:var(--line2);border-radius:3px;overflow:hidden;margin-top:4px}
-  .prog>i{display:block;height:100%;background:var(--brand);transition:width .2s;width:0}
-  .prog.indet>i{width:30%;animation:indet 1.1s infinite ease-in-out}
-  @keyframes indet{0%{margin-left:-30%}100%{margin-left:100%}}
-  table{border-collapse:collapse;width:100%;font-size:13px}
-  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
-  th{font-weight:600;color:var(--ink2);position:sticky;top:0;background:var(--card)}
-  .scroll{max-height:460px;overflow:auto;border:1px solid var(--line2);border-radius:6px}
-  .num{text-align:right}
-  tr.grp td{background:#eff6fc;font-weight:600;border-top:2px solid #c7e0f4}
-  tr.sv td{background:#f4fbf4}
-  td .star{color:#107c10;font-weight:700}
-  a.link{color:var(--brand);cursor:pointer;font-size:12px;text-decoration:none;display:inline-block;margin-top:2px}
-  a.link:hover{text-decoration:underline}
-  #detailBody td:first-child{font-family:Consolas,monospace;color:var(--ink2);white-space:nowrap}
-  .spinner{width:30px;height:30px;border:3px solid var(--line2);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;flex:none}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .loader{display:flex;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:18px;margin:16px 0}
-  .loader .lmain{font-weight:600}.loader .lsub{color:var(--ink2);font-size:13px}
-  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:50}
-  .modal{background:#fff;border-radius:8px;max-width:520px;padding:24px;box-shadow:0 8px 16px rgba(0,0,0,.3)}
-  .modal h3{margin:0 0 12px}.modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
-  .hidden{display:none}
-  /* Web resource = normal (light) theme only. PPTB build injects dark; XrmToolBox uses Win95. */
+/* --------------------------------------------------------------------------
+   Fluent 2 design tokens. Values are lifted verbatim from @fluentui/react-theme
+   (webLightTheme / webDarkTheme), so this looks like a modern model-driven app
+   without shipping React. Names match the Fluent token names.
+
+   One stylesheet, one palette per host — chosen by body[data-host], which the
+   app sets at runtime:
+     body[data-host="web"]   D365 web resource / standalone  -> Fluent LIGHT
+     body[data-host="xtb"]   XrmToolBox (WebView2 plugin)    -> Fluent LIGHT
+     body[data-host="pptb"]  Power Platform ToolBox          -> Fluent DARK
+
+   Every foreground/background pair used for text clears WCAG 2.1 AA (>= 4.5:1)
+   in BOTH themes; focus is a 2px Fluent focus stroke that is never removed.
+   -------------------------------------------------------------------------- */
+:root,
+body[data-host="web"],
+body[data-host="xtb"]{
+  color-scheme:light;
+  --colorNeutralBackground1:#ffffff;
+  --colorNeutralBackground1Hover:#f5f5f5;
+  --colorNeutralBackground2:#fafafa;
+  --colorNeutralBackground3:#f5f5f5;
+  --colorNeutralBackground4:#f0f0f0;
+  --colorNeutralBackgroundDisabled:#f0f0f0;
+  --colorSubtleBackgroundHover:#f5f5f5;
+
+  --colorNeutralForeground1:#242424;          /* 15.5:1 on bg1 */
+  --colorNeutralForeground2:#424242;          /* 10.1:1 */
+  --colorNeutralForeground3:#616161;          /*  6.2:1 */
+  --colorNeutralForegroundDisabled:#bdbdbd;
+  --colorNeutralForegroundOnBrand:#ffffff;
+
+  --colorNeutralStroke1:#d1d1d1;
+  --colorNeutralStroke2:#e0e0e0;
+  --colorNeutralStrokeAccessible:#616161;
+
+  --colorBrandBackground:#0f6cbd;             /* white on it: 5.4:1 */
+  --colorBrandBackgroundHover:#115ea3;
+  --colorBrandBackgroundPressed:#0c3b5e;
+  --colorBrandForeground1:#0f6cbd;
+  --colorBrandForegroundLink:#115ea3;
+  --colorBrandStroke1:#0f6cbd;
+
+  --colorPaletteRedForeground1:#bc2f32;       /* 5.9:1 */
+  --colorPaletteRedBackground1:#fdf6f6;
+  --colorPaletteRedBorder1:#f1bbbc;
+  --colorPaletteGreenForeground1:#0e700e;     /* 6.3:1 */
+  --colorPaletteGreenBackground1:#f1faf1;
+  --colorPaletteGreenBorder1:#9fd89f;
+  --colorPaletteOrangeForeground1:#c43501;    /* 5.4:1 */
+  --colorPaletteYellowBackground1:#fffef5;
+
+  --colorStrokeFocus2:#000000;
+
+  --shadow2:0 0 2px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.14);
+  --shadow4:0 0 2px rgba(0,0,0,.12),0 2px 4px rgba(0,0,0,.14);
+  --shadow8:0 0 2px rgba(0,0,0,.12),0 4px 8px rgba(0,0,0,.14);
+  --shadow16:0 0 2px rgba(0,0,0,.12),0 8px 16px rgba(0,0,0,.14);
+}
+
+/* Power Platform ToolBox is a dark shell — colours only, shape/type unchanged. */
+body[data-host="pptb"]{
+  color-scheme:dark;                          /* native controls + scrollbars render dark */
+  --colorNeutralBackground1:#292929;
+  --colorNeutralBackground1Hover:#3d3d3d;
+  --colorNeutralBackground2:#1f1f1f;
+  --colorNeutralBackground3:#141414;
+  --colorNeutralBackground4:#0a0a0a;
+  --colorNeutralBackgroundDisabled:#141414;
+  --colorSubtleBackgroundHover:#383838;
+
+  --colorNeutralForeground1:#ffffff;          /* 14.6:1 on bg1 */
+  --colorNeutralForeground2:#d6d6d6;          /* 10.0:1 */
+  --colorNeutralForeground3:#adadad;          /*  6.5:1 */
+  --colorNeutralForegroundDisabled:#5c5c5c;
+  --colorNeutralForegroundOnBrand:#ffffff;
+
+  --colorNeutralStroke1:#666666;
+  --colorNeutralStroke2:#525252;
+  --colorNeutralStrokeAccessible:#adadad;
+
+  --colorBrandBackground:#115ea3;             /* white on it: 6.7:1 */
+  --colorBrandBackgroundHover:#0f6cbd;
+  --colorBrandBackgroundPressed:#0c3b5e;
+  --colorBrandForeground1:#479ef5;
+  --colorBrandForegroundLink:#479ef5;
+  --colorBrandStroke1:#479ef5;
+
+  --colorPaletteRedForeground1:#e37d80;
+  --colorPaletteRedBackground1:#3f1011;
+  --colorPaletteRedBorder1:#d13438;
+  --colorPaletteGreenForeground1:#54b054;
+  --colorPaletteGreenBackground1:#052505;
+  --colorPaletteGreenBorder1:#107c10;
+  --colorPaletteOrangeForeground1:#e9835e;
+  --colorPaletteYellowBackground1:#4c4400;
+
+  --colorStrokeFocus2:#ffffff;
+
+  --shadow2:0 0 2px rgba(0,0,0,.24),0 1px 2px rgba(0,0,0,.28);
+  --shadow4:0 0 2px rgba(0,0,0,.24),0 2px 4px rgba(0,0,0,.28);
+  --shadow8:0 0 2px rgba(0,0,0,.24),0 4px 8px rgba(0,0,0,.28);
+  --shadow16:0 0 2px rgba(0,0,0,.24),0 8px 16px rgba(0,0,0,.28);
+}
+
+/* Shape, type, spacing and motion — identical in both themes. */
+:root{
+  --borderRadiusSmall:2px;
+  --borderRadiusMedium:4px;
+  --borderRadiusLarge:6px;
+  --borderRadiusXLarge:8px;
+  --borderRadiusCircular:10000px;
+
+  --fontFamilyBase:'Segoe UI Variable Text','Segoe UI','Segoe UI Web (West European)',
+                   -apple-system,BlinkMacSystemFont,Roboto,'Helvetica Neue',sans-serif;
+  --fontFamilyMonospace:Consolas,'Courier New',Courier,monospace;
+
+  --fontSizeBase200:12px;
+  --fontSizeBase300:14px;
+  --fontSizeBase400:16px;
+  --fontSizeBase500:20px;
+  --fontSizeBase600:24px;
+  --lineHeightBase300:20px;
+  --fontWeightRegular:400;
+  --fontWeightSemibold:600;
+
+  --spacingXS:4px;
+  --spacingS:8px;
+  --spacingM:12px;
+  --spacingL:16px;
+  --spacingXL:24px;
+
+  --durationFaster:100ms;
+  --durationNormal:200ms;
+  --curveEasyEase:cubic-bezier(.33,0,.67,1);
+}
+
+/* --- Page ---------------------------------------------------------------- */
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--fontFamilyBase);font-size:var(--fontSizeBase300);
+     line-height:var(--lineHeightBase300);color:var(--colorNeutralForeground1);
+     background:var(--colorNeutralBackground2);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1200px;margin:0 auto;padding:var(--spacingXL)}
+h1{font-size:var(--fontSizeBase600);line-height:32px;font-weight:var(--fontWeightSemibold);margin:0 0 var(--spacingXS)}
+h2{font-size:var(--fontSizeBase400);line-height:22px;font-weight:var(--fontWeightSemibold);margin:0 0 var(--spacingM)}
+.byline{color:var(--colorNeutralForeground3);font-size:var(--fontSizeBase200);margin:-2px 0 var(--spacingS)}
+.mono{font-family:var(--fontFamilyMonospace);font-size:var(--fontSizeBase200)}
+.muted{color:var(--colorNeutralForeground3)}
+.row{display:flex;gap:var(--spacingL);flex-wrap:wrap;align-items:flex-end}
+.spaced{display:flex;gap:var(--spacingM);align-items:center;flex-wrap:wrap;margin:var(--spacingL) 0}
+
+/* Focus: the Fluent 2 focus stroke. Never removed, only restyled. */
+:focus-visible{outline:2px solid var(--colorStrokeFocus2);outline-offset:1px;border-radius:var(--borderRadiusMedium)}
+
+/* --- Surfaces ------------------------------------------------------------ */
+.card{background:var(--colorNeutralBackground1);border:1px solid var(--colorNeutralStroke2);
+      border-radius:var(--borderRadiusLarge);box-shadow:var(--shadow2);
+      padding:var(--spacingL);margin-bottom:var(--spacingL)}
+.desc,.card .desc{color:var(--colorNeutralForeground2);margin:2px 0 var(--spacingM)}
+
+/* --- Fields -------------------------------------------------------------- */
+.field{display:flex;flex-direction:column;gap:var(--spacingXS);min-width:260px}
+.field>label{font-weight:var(--fontWeightSemibold);font-size:var(--fontSizeBase300)}
+.field .hint{color:var(--colorNeutralForeground3);font-size:var(--fontSizeBase200)}
+
+input[type=text],textarea,select{font-family:inherit;font-size:var(--fontSizeBase300);
+  color:var(--colorNeutralForeground1);background:var(--colorNeutralBackground1);
+  /* Same 3:1 rule as the button - this border is the field's visual boundary, so it is
+     StrokeAccessible on all four sides (6.19:1 light / 6.48:1 dark), never Stroke1. */
+  border:1px solid var(--colorNeutralStrokeAccessible);
+  border-radius:var(--borderRadiusMedium);padding:5px var(--spacingS);min-height:32px}
+input[type=text]:hover,textarea:hover,select:hover{border-color:var(--colorNeutralForeground2)}
+input[type=text]:focus,textarea:focus,select:focus{border-bottom:2px solid var(--colorBrandStroke1)}
+input[type=text]:disabled,textarea:disabled,select:disabled{
+  background:var(--colorNeutralBackgroundDisabled);color:var(--colorNeutralForegroundDisabled)}
+input[type=checkbox],input[type=radio]{accent-color:var(--colorBrandBackground);width:16px;height:16px}
+::placeholder{color:var(--colorNeutralForeground3);opacity:1}
+textarea{resize:vertical}
+
+/* --- Buttons ------------------------------------------------------------- */
+button{font-family:inherit;font-size:var(--fontSizeBase300);font-weight:var(--fontWeightSemibold);
+  line-height:var(--lineHeightBase300);cursor:pointer;border-radius:var(--borderRadiusMedium);
+  padding:5px var(--spacingM);min-height:32px;
+  /* StrokeAccessible, NOT Stroke1. This line IS the button's visual boundary, so WCAG
+     1.4.11 requires >=3:1 against the fill: #616161 on #ffffff = 6.19:1 light, #adadad
+     on #292929 = 6.48:1 dark. Stroke1 measures 1.53:1 / 2.53:1 and fails - Fluent's own
+     default button fails it too, which is why we diverge. Do not "correct" this back. */
+  border:1px solid var(--colorNeutralStrokeAccessible);
+  background:var(--colorNeutralBackground1);color:var(--colorNeutralForeground1);
+  transition:background var(--durationFaster) var(--curveEasyEase)}
+button:hover:not(:disabled){background:var(--colorNeutralBackground1Hover)}
+button.primary{background:var(--colorBrandBackground);border-color:var(--colorBrandBackground);
+  color:var(--colorNeutralForegroundOnBrand)}
+button.primary:hover:not(:disabled){background:var(--colorBrandBackgroundHover);border-color:var(--colorBrandBackgroundHover)}
+button.subtle{border-color:transparent;background:transparent;color:var(--colorBrandForeground1)}
+button.subtle:hover:not(:disabled){background:var(--colorSubtleBackgroundHover)}
+/* dark: the brand ink on Fluent's subtle-hover plate (#383838) is only 4.18:1, so the
+   hover plate goes darker instead - #479ef5 on --colorNeutralBackground3 is 6.6:1 */
+body[data-host="pptb"] button.subtle:hover:not(:disabled){background:var(--colorNeutralBackground3)}
+/* last, so it beats the equally-specific .primary / .subtle variants */
+button:disabled{background:var(--colorNeutralBackgroundDisabled);color:var(--colorNeutralForegroundDisabled);
+  border-color:var(--colorNeutralStroke2);cursor:not-allowed}
+
+/* --- Badges -------------------------------------------------------------- */
+.badge{display:inline-block;padding:2px var(--spacingS);border-radius:var(--borderRadiusCircular);
+  font-size:var(--fontSizeBase200);line-height:16px;font-weight:var(--fontWeightSemibold);
+  margin-right:var(--spacingS);background:var(--colorNeutralBackground3);
+  color:var(--colorNeutralForeground2);border:1px solid var(--colorNeutralStroke2)}
+.badge.brand{background:var(--colorBrandBackground);color:var(--colorNeutralForegroundOnBrand);
+  border-color:var(--colorBrandBackground)}
+.badge.warn{background:var(--colorPaletteYellowBackground1);color:var(--colorPaletteOrangeForeground1);
+  border-color:var(--colorPaletteOrangeForeground1)}
+/* dark: Fluent's orange ink on the dark yellow surface is only 3.7:1, so use body
+   ink there - the orange border still carries the warning cue */
+body[data-host="pptb"] .badge.warn{color:var(--colorNeutralForeground1)}
+.badge.danger{background:var(--colorPaletteRedBackground1);color:var(--colorPaletteRedForeground1);
+  border-color:var(--colorPaletteRedBorder1)}
+.badge.ok{background:var(--colorPaletteGreenBackground1);color:var(--colorPaletteGreenForeground1);
+  border-color:var(--colorPaletteGreenBorder1)}
+.badge.sm{font-size:11px;padding:1px 6px;margin-top:var(--spacingXS)}
+
+/* --- Message bars -------------------------------------------------------- */
+.bar{border-radius:var(--borderRadiusMedium);padding:var(--spacingS) var(--spacingM);
+  margin:var(--spacingS) 0;border:1px solid var(--colorNeutralStroke2);
+  background:var(--colorNeutralBackground3);color:var(--colorNeutralForeground1)}
+.bar.info{background:var(--colorNeutralBackground3);border-color:var(--colorNeutralStroke2)}
+.bar.ok{background:var(--colorPaletteGreenBackground1);border-color:var(--colorPaletteGreenBorder1)}
+.bar.warn{background:var(--colorPaletteYellowBackground1);border-color:var(--colorPaletteOrangeForeground1)}
+.bar.error{background:var(--colorPaletteRedBackground1);border-color:var(--colorPaletteRedBorder1);
+  color:var(--colorPaletteRedForeground1)}
+.bar b{display:block}
+
+/* --- Progress ------------------------------------------------------------ */
+.prog{height:6px;background:var(--colorNeutralBackground4);border-radius:var(--borderRadiusSmall);
+  overflow:hidden;margin-top:var(--spacingXS)}
+/* brandStroke1, not brandBackground: identical in light, but the brighter dark value
+   keeps the fill at 7.1:1 against the track instead of 2.97:1 */
+.prog>i{display:block;height:100%;width:0;background:var(--colorBrandStroke1);
+  transition:width var(--durationNormal) var(--curveEasyEase)}
+.prog.indet>i{width:30%;animation:indet 1.1s infinite ease-in-out}
+@keyframes indet{0%{margin-left:-30%}100%{margin-left:100%}}
+
+/* --- Tables -------------------------------------------------------------- */
+table{border-collapse:collapse;width:100%;font-size:var(--fontSizeBase300);
+  /* digits share one advance width, so figures stack in a true column */
+  font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:var(--spacingS);border-bottom:1px solid var(--colorNeutralStroke2);
+  color:var(--colorNeutralForeground1)}
+/* Every cell sits on one axis whatever it holds - a checkbox, a badge, a two-line label -
+   so a row reads straight across and the columns line up down the table. */
+thead th,tbody td{vertical-align:middle}
+th{font-weight:var(--fontWeightSemibold);color:var(--colorNeutralForeground2);
+  background:var(--colorNeutralBackground2);border-bottom:1px solid var(--colorNeutralStroke1);
+  position:sticky;top:0;z-index:1}
+.scroll{max-height:460px;overflow:auto;border:1px solid var(--colorNeutralStroke2);
+  border-radius:var(--borderRadiusMedium)}
+tr.grp td{background:var(--colorNeutralBackground3);font-weight:var(--fontWeightSemibold);
+  border-top:2px solid var(--colorBrandStroke1)}
+tr.sv td{background:var(--colorPaletteGreenBackground1)}
+td .star{color:var(--colorPaletteGreenForeground1);font-weight:var(--fontWeightSemibold)}
+/* Narrow value columns: .num goes on BOTH the th and every td of the column, so the
+   heading sits centred over its values instead of hugging the left edge. Genuine text
+   columns (names, addresses, logical names) stay left-aligned. */
+th.num,td.num{text-align:center;padding-left:var(--spacingXS);padding-right:var(--spacingXS)}
+/* Centre the cell's contents as a block too, so a checkbox, a badge and a bare number
+   in the same column share one vertical axis. */
+td.num>*{display:inline-flex;align-items:center;justify-content:center}
+/* ...except a cell that deliberately stacks one line per group member: inline-flex would
+   otherwise lay those side by side. */
+td.num>.stack{flex-direction:column}
+table.rels td:first-child,table.rels th:first-child{width:44px}
+table.rels td[title]{cursor:help}
+
+/* --- Links --------------------------------------------------------------- */
+a,a.link{color:var(--colorBrandForegroundLink);text-decoration:none;cursor:pointer}
+a.link{font-size:var(--fontSizeBase200);display:inline-block;margin-top:2px}
+a:hover,a.link:hover{text-decoration:underline}
+
+/* --- Loader / spinner ---------------------------------------------------- */
+.spinner{width:30px;height:30px;border:3px solid var(--colorNeutralStroke2);
+  border-top-color:var(--colorBrandStroke1);border-radius:var(--borderRadiusCircular);
+  animation:spin .8s linear infinite;display:inline-block;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader{display:flex;gap:var(--spacingM);align-items:center;background:var(--colorNeutralBackground1);
+  border:1px solid var(--colorNeutralStroke2);border-radius:var(--borderRadiusLarge);
+  box-shadow:var(--shadow2);padding:var(--spacingL);margin:var(--spacingL) 0}
+.loader .lmain{font-weight:var(--fontWeightSemibold)}
+.loader .lsub{color:var(--colorNeutralForeground3);font-size:var(--fontSizeBase200)}
+
+/* --- Dialogs ------------------------------------------------------------- */
+/* Fluent's overlay scrim is a translucent black in BOTH themes - a shade over the
+   page rather than a themed surface, so it stays a literal rgba(). */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;
+  align-items:center;justify-content:center;z-index:50}
+.modal{background:var(--colorNeutralBackground1);color:var(--colorNeutralForeground1);
+  border:1px solid var(--colorNeutralStroke2);border-radius:var(--borderRadiusLarge);
+  max-width:520px;padding:var(--spacingXL);box-shadow:var(--shadow16)}
+.modal h3{margin:0 0 var(--spacingM);font-size:var(--fontSizeBase500);
+  font-weight:var(--fontWeightSemibold);line-height:26px}
+.modal .acts{display:flex;gap:var(--spacingS);justify-content:flex-end;margin-top:var(--spacingXL)}
+#detailBody td:first-child{font-family:var(--fontFamilyMonospace);
+  color:var(--colorNeutralForeground3);white-space:nowrap}
+
+/* --- Visibility ---------------------------------------------------------- */
+/* Screen-reader-only. The <legend> and the table <caption>s exist purely to name a
+   control group / a table for assistive tech. display:none (.hidden) would remove them
+   from the accessibility tree, so they are clipped to a 1px box instead - announced but
+   never seen. .hidden itself stays display:none for everything that really toggles. */
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;
+  clip:rect(0 0 0 0);clip-path:inset(50%);overflow:hidden;white-space:nowrap}
+/* Deliberately last: .hidden is only as specific as .spaced / .loader / .backdrop,
+   so it has to come after them to win on the elements that carry both classes
+   (#actions, #loader, #detailModal, #modal). Do not move this up the file. */
+.hidden{display:none}
+
+/* --- Respect the user's motion preference -------------------------------- */
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important}
+}
 </style>
 </head>
 <body>
+<script>
+/* Host theming - one stylesheet, one palette per host, selected by body[data-host].
+   Runs before the app markup is painted. Power Platform ToolBox injects
+   window.dataverseAPI, and XrmToolBox injects window.XTB_CONFIG via
+   AddScriptToExecuteOnDocumentCreatedAsync, both before any document script. */
+(function () {
+  var PPTB = !!window.dataverseAPI, XTB = !!window.XTB_CONFIG;
+  document.body.dataset.host = PPTB ? 'pptb' : XTB ? 'xtb' : 'web';
+})();
+</script>
 <main class="wrap">
   <h1>Functional Location De-duplicator</h1>
   <div class="byline">by Mark Christie</div>
@@ -139,7 +412,7 @@
     <h2>1b · Relationships — which linked records to count &amp; reallocate</h2>
     <div class="desc">Only the ticked relationships are counted, reallocated to the survivor, and verified before delete. Fewer = faster. Defaults: Account, Work Order, Agreement.</div>
     <fieldset id="relsList" style="border:0;margin:0;padding:0">
-      <legend class="hidden">Relationships to count and reallocate</legend>
+      <legend class="sr-only">Relationships to count and reallocate</legend>
     </fieldset>
   </div>
 
@@ -156,9 +429,9 @@
     <h2>2 · Matched records — please review &amp; check master records</h2>
     <div class="desc" id="summary" role="status" aria-live="polite"></div>
     <div class="scroll"><table>
-      <caption class="hidden">Duplicate functional locations grouped by match key, one row per record, sorted by Master score</caption>
+      <caption class="sr-only">Duplicate functional locations grouped by match key, one row per record, sorted by Master score</caption>
       <thead><tr>
-        <th scope="col">Use</th><th scope="col">Survivor</th><th scope="col" class="num">Master %</th><th scope="col">Name</th><th scope="col">Addr 1</th><th scope="col">Addr 2</th><th scope="col">Addr 3</th>
+        <th scope="col" class="num">Use</th><th scope="col" class="num">Survivor</th><th scope="col" class="num">Master %</th><th scope="col">Name</th><th scope="col">Addr 1</th><th scope="col">Addr 2</th><th scope="col">Addr 3</th>
         <th scope="col">City</th><th scope="col">Country</th><th scope="col">Post Code</th><th scope="col">Created by</th><th scope="col">Created on</th><th scope="col" class="num">Linked</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
@@ -181,7 +454,7 @@
     <h2>3 · Master records — merged</h2>
     <div class="desc">Each master links into D365. <b>Links after (master)</b> should equal <b>Links before (group total)</b> — if it's lower, some references didn't reallocate. <b>Duplicates removed</b> is how many were deactivated/deleted.</div>
     <div class="scroll"><table>
-      <caption class="hidden">Master records after the merge, with combined links before and the master's links after</caption>
+      <caption class="sr-only">Master records after the merge, with combined links before and the master's links after</caption>
       <thead><tr><th scope="col">Master (kept)</th><th scope="col">Post Code</th><th scope="col" class="num">Links before (group total)</th><th scope="col" class="num">Links after (master)</th><th scope="col" class="num">Duplicates removed</th></tr></thead>
       <tbody id="mergedBody"></tbody>
     </table></div>
@@ -353,21 +626,21 @@
     return 'N:1 — '+r.childEntity+' → Functional Location  ·  relationship: '+r.schema+(r.attr?('  ·  field: '+r.attr):'');
   }
   function renderRels(){
-    var box=$('relsList');box.innerHTML='<legend class="hidden">Relationships to count and reallocate</legend>';
+    var box=$('relsList');box.innerHTML='<legend class="sr-only">Relationships to count and reallocate</legend>';
     var tbl=elem('table',{class:'rels'});
     tbl.appendChild(elem('thead',null,[elem('tr',null,[
-      elem('th',{scope:'col',text:'Use'}),elem('th',{scope:'col',text:'Relationship'}),
-      elem('th',{scope:'col',text:'Table'}),elem('th',{scope:'col',text:'Type'})])]));
+      elem('th',{scope:'col',class:'num',text:'Use'}),elem('th',{scope:'col',text:'Relationship'}),
+      elem('th',{scope:'col',text:'Table'}),elem('th',{scope:'col',class:'num',text:'Type'})])]));
     var tb=elem('tbody');
     relList().slice().sort(function(a,b){return a.label.localeCompare(b.label);}).forEach(function(r){
       var dir=r.kind==='NN'?'N:N':'N:1', tip=relTip(r);
       var cb=elem('input',{type:'checkbox','aria-label':'Reallocate '+r.label+' ('+tip+')'});cb.checked=S.rels.has(r.schema);
       cb.addEventListener('change',function(){if(cb.checked)S.rels.add(r.schema);else S.rels.delete(r.schema);});
       var tr=elem('tr');
-      tr.appendChild(elem('td',null,[cb]));
+      tr.appendChild(elem('td',{class:'num'},[cb]));
       tr.appendChild(elem('td',{title:tip},[elem('b',{text:r.label})]));
       tr.appendChild(elem('td',{class:'mono muted',title:tip,text:r.childEntity}));
-      tr.appendChild(elem('td',{title:tip,text:dir}));
+      tr.appendChild(elem('td',{class:'num',title:tip,text:dir}));
       tb.appendChild(tr);
     });
     tbl.appendChild(tb);
@@ -398,7 +671,7 @@
       var cb=elem('input',{type:'checkbox','aria-label':'Include group '+(g.street1||'')+' '+(g.postcode||'')});cb.checked=g.include;
       cb.addEventListener('change',function(){g.include=cb.checked;updateSummary();
         if(cb.checked&&g.members.some(function(m){return m.total==null;}))countGroup(g);});
-      hr.appendChild(elem('td',null,[cb]));
+      hr.appendChild(elem('td',{class:'num'},[cb]));   // 'Use' column - matches th.num
       var hd=elem('td',{colspan:'12'});
       hd.appendChild(txt((g.street1||'—')+'  ·  '+(g.postcode||'—')+'   ('+g.members.length+' records)'));
       if(g.oversize)hd.appendChild(elem('span',{class:'badge danger sm',text:' ⚠ large group — counts skipped; tick to count & review'}));
@@ -412,16 +685,18 @@
         tr.addEventListener('click',function(ev){var tg=ev.target.tagName;
           if(tg==='INPUT'||tg==='A'||tg==='LABEL')return; if(!S.conn.baseUrl)return;
           window.open(recordUrl(m.id),'_blank');});
-        tr.appendChild(elem('td')); // (Use col blank on member rows)
+        tr.appendChild(elem('td',{class:'num'})); // (Use col blank on member rows)
         // survivor radio
         var rb=elem('input',{type:'radio',name:'sv-'+g.key,'aria-label':'Keep '+(m.name||m.id.substr(0,8))+' as the master record'});rb.checked=isSv;
         rb.addEventListener('change',function(){g.survivorId=m.id;renderResults();});
-        var svtd=elem('td',null,[rb]);if(isSv)svtd.appendChild(elem('span',{class:'star',text:' ★'}));
+        var svtd=elem('td',{class:'num'},[rb]);if(isSv)svtd.appendChild(elem('span',{class:'star',text:' ★'}));
         tr.appendChild(svtd);
         // Master % score
         var sc=(m.score==null)?'—':m.score+'%';
         var sctd=elem('td',{class:'num'});var scb=elem('b',{text:sc});
-        if(m.score!=null)scb.style.color=(m.score>=66?'#0e700e':m.score>=33?'#9a5b00':'#a4262c');
+        // score ink comes from the theme tokens so it stays AA in light and dark
+        if(m.score!=null)scb.style.color=(m.score>=66?'var(--colorPaletteGreenForeground1)'
+          :m.score>=33?'var(--colorPaletteOrangeForeground1)':'var(--colorPaletteRedForeground1)');
         sctd.appendChild(scb);tr.appendChild(sctd);
         // name + guid + "all fields" link
         var nm=elem('td',null,[elem('b',{text:m.name||'(no name)'}),elem('div',{class:'mono muted',text:m.id.substr(0,8)})]);

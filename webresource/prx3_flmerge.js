@@ -385,10 +385,10 @@
           <${Badge} c="danger">Refs to reallocate: ${totals.refs}<//>
         </div>
         <div className="scroll"><table>
-          <thead><tr><th>Use</th><th>Street 1 / Postcode</th><th>Records (survivor ★)</th><th className="num">Refs</th></tr></thead>
+          <thead><tr><th className="num">Use</th><th>Street 1 / Postcode</th><th>Records (survivor ★)</th><th className="num">Refs</th></tr></thead>
           <tbody>
             ${groups.map(function (g) { return html`<tr key=${g.key}>
-              <td><input type="checkbox" checked=${g.include} onChange=${function (e) {
+              <td className="num"><input type="checkbox" checked=${g.include} onChange=${function (e) {
                 var on = e.target.checked;
                 setGroups(function (gs) { return gs.map(function (x) { return x.key === g.key ? Object.assign({}, x, { include: on }) : x; }); });
               }} /></td>
@@ -403,10 +403,10 @@
                   ${mm.id === g.survivorId ? ' ★ ' : '  '}<b>${mm.name || '(no name)'}</b>
                   <span className="mono muted"> ${mm.id.substr(0, 8)} · ${(mm.createdon || '').substr(0, 10)}</span>
                 </label></div>`; })}</td>
-              <td className="num">${g.members.map(function (mm) {
+              <td className="num"><div className="stack">${g.members.map(function (mm) {
                 var title = Object.keys(mm.byRel || {}).filter(function (k) { return mm.byRel[k] > 0; }).map(function (k) { return k + ': ' + mm.byRel[k]; }).join('\n');
                 return html`<div key=${mm.id} title=${title} style=${{ padding: '2px 0' }}>${mm.id === g.survivorId ? html`<b>${mm.total}</b>` : mm.total}</div>`;
-              })}</td>
+              })}</div></td>
             </tr>`; })}
           </tbody>
         </table></div>
@@ -440,6 +440,10 @@
       </div>`}
     </div>`;
   }
+
+  /* Host theming - prx3_flmerge.css carries one Fluent 2 palette per host, chosen by
+     body[data-host]: "pptb" -> dark, "xtb" / "web" -> light. */
+  document.body.dataset.host = window.dataverseAPI ? 'pptb' : window.XTB_CONFIG ? 'xtb' : 'web';
 
   ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 })();

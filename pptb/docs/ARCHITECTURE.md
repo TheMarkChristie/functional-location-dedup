@@ -16,20 +16,24 @@ const PPTB = !!window.dataverseAPI;   // Power Platform ToolBox
 
 | Host | Theme | Data access |
 |------|-------|-------------|
-| Power Platform ToolBox | **Dark** (injected by `build.js`) | `window.dataverseAPI` |
-| XrmToolBox (WebView2 plugin) | **Windows 95** (injected by `../../xrmtoolbox/skin-win95.js`) | injected token + `fetch` |
-| D365 web resource / standalone | Light | same-origin `fetch` |
+| Power Platform ToolBox | **Fluent 2 dark** (`body[data-host="pptb"]`) | `window.dataverseAPI` |
+| XrmToolBox (WebView2 plugin) | **Fluent 2 light** (`body[data-host="xtb"]`) | injected token + `fetch` |
+| D365 web resource / standalone | **Fluent 2 light** (`body[data-host="web"]`) | same-origin `fetch` |
 
-There is no bundler and no runtime CDN (CSP-friendly). Each host build is **generated** from
-the one canonical file by swapping only the `<style>` block:
+There is no bundler and no runtime CDN (CSP-friendly), and **no build-time skinning**. Every
+host ships the identical file; it sets `body[data-host]` at runtime and its Fluent 2 token
+block carries a palette for each host.
 
-- `pptb/build.js` → copies the canonical HTML into `pptb/dist/index.html` and injects the dark
-  theme (`color-scheme: dark` + dark design tokens), plus copies the icon.
-- `xrmtoolbox/skin-win95.js` → copies the canonical HTML and swaps in the Windows 95 stylesheet,
-  writing `xrmtoolbox/FunctionalLocationMerge/app/index.html` (bundled into the plugin).
+- `pptb/build.js` → copies the canonical HTML into `pptb/dist/index.html`, plus the icon and
+  the shared `prx3_flmerge.css`.
+- `xrmtoolbox/build-app.js` → copies the canonical HTML to
+  `xrmtoolbox/FunctionalLocationMerge/app/functional-location-dedup.html` (bundled into the
+  plugin). The name is deliberately unique — every plugin dll installs flat into `Plugins`, so
+  all WebView2 tools share one `Plugins\app` folder and a generic `index.html` there is
+  overwritten by whichever tool installs last.
 
-Edit the canonical file, then rebuild PPTB (`node build.js`) and the XTB skin, and redeploy the
-web resource — all three stay in lockstep.
+Edit the canonical file, then rebuild PPTB (`node build.js`) and the XTB app (`node
+build-app.js`), and redeploy the web resource — all three stay in lockstep.
 
 ## Data layer (host-agnostic)
 
@@ -58,6 +62,6 @@ handling. See the AccessibilityStandards pass in the project README.
 ## Files
 
 - `package.json` — PPTB manifest (`main`/`icon` relative to `dist`, Mark as author).
-- `build.js` — assembles `dist/` (dark HTML + icon).
+- `build.js` — assembles `dist/` (the shared HTML + icon + stylesheet; no skinning step).
 - `Functional Location De-duplicator.svg` — tool icon.
 - `dist/` — generated; what ToolBox loads.

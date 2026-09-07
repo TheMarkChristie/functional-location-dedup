@@ -26,7 +26,9 @@ is **dual-mode** (`const PPTB = !!window.dataverseAPI`) and auto-detects its hos
 | **3. Power Platform ToolBox** | `pptb/` package | `window.dataverseAPI` (queryData / update / delete / associate) |
 
 All three load the **same HTML** — XrmToolBox hosts it in WebView2, and `pptb/build.js`
-copies it into `pptb/dist/index.html`. Update the one file and rebuild/redeploy.
+copies it into `pptb/dist/index.html`. It sets `body[data-host]` at runtime, so the one
+Fluent 2 token block gives light in D365/XrmToolBox and dark in Power Platform ToolBox.
+Update the one file and rebuild/redeploy.
 
 ## Master % score
 
@@ -59,7 +61,8 @@ Open: `https://org1d1cdc26.crm4.dynamics.com/WebResources/prx3_FunctionalLocatio
 
 ## Deploy B — XrmToolBox
 Build `xrmtoolbox/FunctionalLocationMerge` (.NET Framework 4.8, WebView2 runtime). The build
-copies the web resource HTML to `app/index.html`. Drop the output into
+copies the web resource HTML to `app/functional-location-dedup.html` (the name must stay
+unique — all WebView2 plugins share the one `Plugins\app` folder). Drop the output into
 `%APPDATA%\MscrmTools\XrmToolBox\Plugins\`. Connect with an **OAuth** connection.
 
 ## Deploy C — Power Platform ToolBox
