@@ -1,14 +1,21 @@
-name: Publish PPTB tool to npm
+name: Publish Functional Location De-duplicator to npm
 
-# Builds the PPTB dist (the canonical single-file HTML + icon + shared stylesheet) and
-# publishes to npm. The dark theme is applied at runtime via body[data-host="pptb"], not by
-# the build, so dist/index.html is byte-identical to the D365 web resource.
-# Uses an npm Automation token (bypasses 2FA) stored as the repo secret NPM_TOKEN.
+# Publishes the Power Platform ToolBox package (pptb/) to npm using npm Trusted
+# Publishing (OIDC). No npm token and no repo secret is involved: the `id-token: write`
+# permission mints a short-lived OIDC token that npm exchanges for publish rights, and
+# provenance attestations are generated automatically.
+#
+# The trusted-publisher record on npmjs.com is bound to this exact file name
+# (.github/workflows/publish-npm.yml). Renaming this file breaks publishing.
 
 on:
-  workflow_dispatch:        # run manually from the Actions tab
   release:
-    types: [published]      # ...or when a GitHub Release is published
+    types: [published]      # a published GitHub Release publishes automatically
+  workflow_dispatch:        # ...or run it by hand from the Actions tab
+
+permissions:
+  id-token: write           # required: mints the OIDC token npm trades for publish rights
+  contents: read
 
 jobs:
   publish:
@@ -16,18 +23,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'   # ships npm >= 11.5.1, the minimum for trusted publishing
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Build dist
+      # Regenerates pptb/dist from the canonical web resource HTML + shared stylesheet.
+      # pptb/dist is gitignored, so this step is what creates the files npm ships.
+      # The package has zero dependencies, so there is deliberately no `npm ci`.
+      - name: Build the ToolBox package
         working-directory: pptb
-        run: node build.js
+        run: npm run build
 
-      - name: Publish to npm
+      - name: Publish
         working-directory: pptb
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM }}

@@ -89,6 +89,26 @@ above; a PPTB account for the submission form.
 **Updating later:** `npm version patch|minor|major` in `pptb/` → `node build.js` →
 `npm publish`. The registry syncs the new version.
 
+### Automated publish (npm Trusted Publishing / OIDC)
+
+`.github/workflows/publish-npm.yml` publishes `pptb/` to npm with **no token and no repo
+secret** — GitHub mints a short-lived OIDC token (`permissions: id-token: write`) that npm
+exchanges for publish rights, and provenance attestations are attached automatically.
+
+One-off setup on npmjs.com → the `functional-location-dedup` package → **Settings** →
+**Trusted Publisher** → GitHub Actions:
+
+| Field | Value |
+| --- | --- |
+| Organization or user | `TheMarkChristie` |
+| Repository | `functional-location-dedup` |
+| Workflow filename | `publish-npm.yml` |
+| Environment | *(leave blank)* |
+
+The workflow file name is part of that trust record — **do not rename `publish-npm.yml`**.
+Once configured: bump the version in `pptb/package.json`, push, then publish a GitHub Release
+(or run the workflow from the Actions tab).
+
 ---
 
 ## C. (Optional) D365 web resource
