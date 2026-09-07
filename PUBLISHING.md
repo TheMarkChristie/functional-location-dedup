@@ -20,7 +20,7 @@ through different channels:
 (or use NuGet Package Explorer); the GitHub repo above (for `projectUrl` + `iconUrl`).
 
 **Rule:** the NuGet `version` must **exactly** match the assembly version. Here both are
-`1.0.3` (assembly `1.0.3.0`). Bump them together for future releases (csproj `<Version>` +
+`1.0.4` (assembly `1.0.4.0`). Bump them together for future releases (csproj `<Version>` +
 `.nuspec` `<version>`).
 
 1. **Build Release** (bundles the app HTML into `app\functional-location-dedup.html`):
@@ -34,14 +34,14 @@ through different channels:
    ```powershell
    nuget pack FunctionalLocationMerge.nuspec -OutputDirectory ..\..\_dist
    ```
-   Produces `MarkChristie.FunctionalLocationDeduplicator.1.0.3.nupkg`.
+   Produces `MarkChristie.FunctionalLocationDeduplicator.1.0.4.nupkg`.
    *(Optional sanity check: open the .nupkg in NuGet Package Explorer — confirm it contains
    `Plugins\FunctionalLocationMerge.dll` + `Plugins\app\functional-location-dedup.html`,
    the `XrmToolBox`
    dependency, the `XrmToolBox` tag, author/owner = Mark Christie, and a working `iconUrl`.)*
 3. **Push to nuget.org** and wait for it to index (a few minutes):
    ```powershell
-   nuget push ..\..\_dist\MarkChristie.FunctionalLocationDeduplicator.1.0.3.nupkg -ApiKey <YOUR_NUGET_KEY> -Source https://api.nuget.org/v3/index.json
+   nuget push ..\..\_dist\MarkChristie.FunctionalLocationDeduplicator.1.0.4.nupkg -ApiKey <YOUR_NUGET_KEY> -Source https://api.nuget.org/v3/index.json
    ```
 4. **Register** the package id at **https://www.xrmtoolbox.com/plugins/new/** — paste
    `MarkChristie.FunctionalLocationDeduplicator`. The portal reads the metadata; an XrmToolBox

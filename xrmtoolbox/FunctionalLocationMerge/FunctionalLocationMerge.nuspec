@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
   <metadata>
     <id>MarkChristie.FunctionalLocationDeduplicator</id>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
     <title>Functional Location De-duplicator</title>
     <authors>Mark Christie</authors>
     <owners>Mark Christie</owners>
@@ -12,7 +12,7 @@
     <license type="expression">MIT</license>
     <description>Merge duplicate Functional Locations onto a master record. Find duplicates by Street 1 + Postcode, score each record by completeness + linked records + age, reallocate every linked record (Account, Work Order, Agreement, …) onto the highest-scoring master, verify, then deactivate or delete the duplicates.</description>
     <summary>Merge duplicate Functional Locations onto a master record.</summary>
-    <releaseNotes>The interface has been rebuilt in the Fluent 2 design language so the tool looks like a modern model-driven app - light in XrmToolBox, dark in Power Platform ToolBox. This is a visual change only; how the tool finds, scores and merges duplicate Functional Locations is unchanged. It also no longer collides with other WebView2 XrmToolBox tools: the page is installed as app\functional-location-dedup.html instead of the generic app\index.html, so installing this tool no longer overwrites another tool's page in the shared Plugins\app folder.</releaseNotes>
+    <releaseNotes>The interface now matches the other tools in the suite: one compact header line with the tool name, author and record counts, and the same cards, tables and spacing used elsewhere. This is a visual change only - how the tool finds, scores and merges duplicate Functional Locations is unchanged.</releaseNotes>
     <tags>XrmToolBox Plugin Dataverse Dynamics365 FieldService FunctionalLocation Duplicates Merge</tags>
     <dependencies>
       <dependency id="XrmToolBox" version="1.2025.7.71" />

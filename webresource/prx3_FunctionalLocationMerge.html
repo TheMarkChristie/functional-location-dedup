@@ -161,13 +161,31 @@ body[data-host="pptb"]{
 
 /* --- Page ---------------------------------------------------------------- */
 *{box-sizing:border-box}
-body{margin:0;font-family:var(--fontFamilyBase);font-size:var(--fontSizeBase300);
+/* The outer gutter lives on <body>, so header.app and <main class="wrap"> share one
+   measure and line up on the same left edge. */
+body{margin:0;padding:var(--spacingL);font-family:var(--fontFamilyBase);font-size:var(--fontSizeBase300);
      line-height:var(--lineHeightBase300);color:var(--colorNeutralForeground1);
      background:var(--colorNeutralBackground2);-webkit-font-smoothing:antialiased}
-.wrap{max-width:1200px;margin:0 auto;padding:var(--spacingXL)}
-h1{font-size:var(--fontSizeBase600);line-height:32px;font-weight:var(--fontWeightSemibold);margin:0 0 var(--spacingXS)}
+.wrap{max-width:1600px;margin:0 auto;padding:0}
+/* XrmToolBox docks the plugin in a panel, so it gets the full width. */
+body[data-host="xtb"]{padding:var(--spacingM)}
+body[data-host="xtb"] .wrap,body[data-host="xtb"] header.app{max-width:none}
+
+/* --- App shell header ----------------------------------------------------
+   ONE compact line - 24px mark, 16px title, inline 12px byline, spacer, then
+   trailing meta. Same shell as prx3_UserSecurityRoleTableAccess. */
+header.app{display:flex;align-items:center;gap:var(--spacingS);flex-wrap:wrap;
+  max-width:1600px;margin:0 auto var(--spacingM);padding:0}
+.hicon{width:24px;height:24px;flex:none}
+.grow{flex:1 1 auto}
+h1{font-size:var(--fontSizeBase400);line-height:22px;font-weight:var(--fontWeightSemibold);
+   margin:0;color:var(--colorNeutralForeground1);white-space:nowrap}
 h2{font-size:var(--fontSizeBase400);line-height:22px;font-weight:var(--fontWeightSemibold);margin:0 0 var(--spacingM)}
-.byline{color:var(--colorNeutralForeground3);font-size:var(--fontSizeBase200);margin:-2px 0 var(--spacingS)}
+.byline{color:var(--colorNeutralForeground3);font-size:var(--fontSizeBase200);white-space:nowrap}
+/* Trailing meta: the relationship-count pill renderBadges() fills in after metadata
+   loads. Flex + gap here, so .badge's own margin-right is cancelled to avoid doubling. */
+#badges{display:flex;align-items:center;flex-wrap:wrap;gap:var(--spacingS);min-width:0}
+#badges .badge{margin-right:0}
 .mono{font-family:var(--fontFamilyMonospace);font-size:var(--fontSizeBase200)}
 .muted{color:var(--colorNeutralForeground3)}
 .row{display:flex;gap:var(--spacingL);flex-wrap:wrap;align-items:flex-end}
@@ -180,7 +198,8 @@ h2{font-size:var(--fontSizeBase400);line-height:22px;font-weight:var(--fontWeigh
 .card{background:var(--colorNeutralBackground1);border:1px solid var(--colorNeutralStroke2);
       border-radius:var(--borderRadiusLarge);box-shadow:var(--shadow2);
       padding:var(--spacingL);margin-bottom:var(--spacingL)}
-.desc,.card .desc{color:var(--colorNeutralForeground2);margin:2px 0 var(--spacingM)}
+.desc,.card .desc{color:var(--colorNeutralForeground2);font-size:var(--fontSizeBase300);
+      margin:2px 0 var(--spacingM);max-width:90ch}
 
 /* --- Fields -------------------------------------------------------------- */
 .field{display:flex;flex-direction:column;gap:var(--spacingXS);min-width:260px}
@@ -273,9 +292,22 @@ th,td{text-align:left;padding:var(--spacingS);border-bottom:1px solid var(--colo
 /* Every cell sits on one axis whatever it holds - a checkbox, a badge, a two-line label -
    so a row reads straight across and the columns line up down the table. */
 thead th,tbody td{vertical-align:middle}
+/* Background3, not Background2: the zebra below now uses Background2, and a sticky
+   header must not share a fill with the rows scrolling under it. 9.22:1 / 12.68:1. */
 th{font-weight:var(--fontWeightSemibold);color:var(--colorNeutralForeground2);
-  background:var(--colorNeutralBackground2);border-bottom:1px solid var(--colorNeutralStroke1);
+  background:var(--colorNeutralBackground3);border-bottom:1px solid var(--colorNeutralStroke1);
   position:sticky;top:0;z-index:1}
+/* House zebra + row hover. Both paint the <tr>. tr.grp and tr.sv paint their <td>s,
+   which sit on top of the row fill, so the group banding and the green survivor row
+   keep their meaning untouched. The second selector in each pair catches the detail
+   modal's table, whose rows are appended straight to <table> with no <tbody>. */
+tbody tr:nth-child(even),table>tr:nth-child(even){background:var(--colorNeutralBackground2)}
+tbody tr:hover,table>tr:hover{background:var(--colorSubtleBackgroundHover)}
+/* dark: the same trap already documented for button.subtle - on Fluent's #383838 hover
+   plate the record link and the three Master % inks fall to 4.18-4.40:1. Background3
+   restores them (link 6.56:1, green 6.77:1, orange 6.91:1, red 6.59:1, muted 8.21:1). */
+body[data-host="pptb"] tbody tr:hover,
+body[data-host="pptb"] table>tr:hover{background:var(--colorNeutralBackground3)}
 .scroll{max-height:460px;overflow:auto;border:1px solid var(--colorNeutralStroke2);
   border-radius:var(--borderRadiusMedium)}
 tr.grp td{background:var(--colorNeutralBackground3);font-weight:var(--fontWeightSemibold);
@@ -355,10 +387,32 @@ a:hover,a.link:hover{text-decoration:underline}
   document.body.dataset.host = PPTB ? 'pptb' : XTB ? 'xtb' : 'web';
 })();
 </script>
-<main class="wrap">
+<header class="app">
+  <!-- The product mark, simplified for 24px from pptb/dist/Functional Location
+       De-duplicator.svg: the full-size art carries ~180 individual windows and two
+       outlined curved arrows, none of which survive at 18 device pixels. Kept: the
+       gradient plate, the shaded duplicate beside the white master, window bands
+       instead of a window grid, and the white-haloed converging merge arrows.
+       Brand colours are literal - this mark is never themed. -->
+  <svg class="hicon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <defs><linearGradient id="flmPlate" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#01539D"/><stop offset="1" stop-color="#409AE9"/></linearGradient></defs>
+    <rect width="32" height="32" rx="7" fill="url(#flmPlate)"/>
+    <path fill="#C9D6E3" d="M5 16h9.5v11H5z"/><path fill="#FEFEFE" d="M17.5 13H27v14h-9.5z"/>
+    <g fill="#0979CB">
+      <rect x="6.8" y="18.1" width="5.9" height="2.4"/><rect x="6.8" y="22.5" width="5.9" height="2.4"/>
+      <rect x="19.3" y="14.4" width="5.9" height="2.4"/><rect x="19.3" y="18.8" width="5.9" height="2.4"/>
+      <rect x="19.3" y="23.2" width="5.9" height="2.4"/></g>
+    <g fill="#5ECD43" stroke="#FEFEFE" stroke-width="2.4" stroke-linejoin="round" paint-order="stroke">
+      <path d="M5 6.7h6V5.2l4.4 2.6L11 10.4V8.9H5z"/><path d="M27 6.7h-6V5.2l-4.4 2.6L21 10.4V8.9h6z"/></g>
+  </svg>
   <h1>Functional Location De-duplicator</h1>
-  <div class="byline">by Mark Christie</div>
-  <div id="badges" style="margin:6px 0 14px"></div>
+  <span class="byline">by Mark Christie</span>
+  <span class="grow"></span>
+  <div id="badges"></div>
+</header>
+
+<main class="wrap">
 
   <!-- connect (standalone) -->
   <div id="connectCard" class="card hidden" style="max-width:640px">
